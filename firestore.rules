@@ -1,0 +1,23 @@
+// ------------------------------
+// Rules for the 'messages' collection
+// ------------------------------
+match /messages/{messageId} {
+  // Only allow read if the user is the sender or receiver
+  allow read: if request.auth != null &&
+    (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
+
+  // Only allow create if the user is the sender and is not messaging himself
+  allow create: if request.auth != null &&
+    request.auth.uid == request.resource.data.senderId &&
+    request.resource.data.senderId != request.resource.data.receiverId &&
+    request.resource.data.annonceId is string &&
+    request.resource.data.message is string &&
+    request.resource.data.annonceId.size() > 0 &&
+    request.resource.data.message.size() > 0;
+
+  // No updates or deletes allowed (messages are immutable)
+  allow update: if false;
+  allow delete: if false;
+}
+
+// ------------------------------ 
