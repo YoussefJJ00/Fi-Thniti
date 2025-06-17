@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image, Keyboard, Modal, ScrollView } from 'react-native';
 import { db, auth } from '../../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, doc, getDocs } from 'firebase/firestore';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export default function Messages({ route, navigation }) {
-  const { annonceId, driverId, passengerId } = route.params || {};
+  const { otherUserId } = route.params || {};
   const currentUserId = auth.currentUser?.uid;
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -13,9 +13,8 @@ export default function Messages({ route, navigation }) {
   const [profile, setProfile] = useState(null);
   const [sending, setSending] = useState(false);
   const flatListRef = useRef();
-
-  // Determine the other user's ID
-  const otherUserId = currentUserId === driverId ? passengerId : driverId;
+  const [infoVisible, setInfoVisible] = useState(false);
+  const [vehicle, setVehicle] = useState(null);
 
   // Restriction: cannot message yourself
   if (currentUserId === otherUserId) {
@@ -43,33 +42,48 @@ export default function Messages({ route, navigation }) {
 
   // Fetch messages
   useEffect(() => {
-    if (!annonceId || !currentUserId || !otherUserId) return;
+    if (!currentUserId || !otherUserId) return;
     setLoading(true);
     const q = query(
       collection(db, 'messages'),
-      where('annonceId', '==', annonceId),
       where('participants', 'array-contains', currentUserId),
       orderBy('timestamp', 'asc')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setMessages(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(
+            m =>
+              m.participants.includes(currentUserId) &&
+              m.participants.includes(otherUserId)
+          )
+      );
       setLoading(false);
     });
     return unsubscribe;
-  }, [annonceId, currentUserId, otherUserId]);
+  }, [currentUserId, otherUserId]);
+
+  // Fetch vehicle
+  useEffect(() => {
+    const fetchVehicle = async () => {
+      if (!otherUserId) return;
+      const vehicleRef = collection(db, 'users', otherUserId, 'vehicle');
+      const vehicleSnap = await getDocs(vehicleRef);
+      if (!vehicleSnap.empty) {
+        // If user can have multiple vehicles, pick the first or the default
+        setVehicle(vehicleSnap.docs[0].data());
+      }
+    };
+    fetchVehicle();
+  }, [otherUserId]);
 
   // Send message
   const sendMessage = async () => {
     if (!input.trim()) return;
-    if (!annonceId) {
-      Alert.alert('Erreur', "Aucun trajet sélectionné pour la discussion.");
-      setSending(false);
-      return;
-    }
     setSending(true);
     try {
       await addDoc(collection(db, 'messages'), {
-        annonceId,
         senderId: currentUserId,
         receiverId: otherUserId,
         message: input.trim(),
@@ -109,6 +123,12 @@ export default function Messages({ route, navigation }) {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={28} color="#222" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.infoButton} onPress={() => setInfoVisible(true)}>
+          <Ionicons name="information-circle-outline" size={28} color="#222" />
+        </TouchableOpacity>
         {profile?.profilePicture ? (
           <Image source={{ uri: profile.profilePicture }} style={styles.avatar} />
         ) : (
@@ -116,10 +136,50 @@ export default function Messages({ route, navigation }) {
             <Ionicons name="person" size={48} color="#bbb" />
           </View>
         )}
-        <Text style={styles.headerName}>{profile?.firstName || ''} {profile?.lastName || ''}</Text>
+        <Text style={styles.headerName}>
+          {(profile?.firstName || profile?.prenom || '') + ' ' + (profile?.lastName || profile?.nom || '') || 'Utilisateur inconnu'}
+        </Text>
         {/* Optional: Online status dot */}
         <View style={styles.statusDot} />
       </View>
+      {/* Info Modal */}
+      <Modal
+        visible={infoVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setInfoVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Informations de l'utilisateur</Text>
+            <ScrollView>
+              <Text style={styles.infoLabel}>Téléphone:</Text>
+              <Text style={styles.infoValue}>{profile?.phone || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Plaque d'immatriculation:</Text>
+              <Text style={styles.infoValue}>{vehicle?.licensePlate || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Modèle:</Text>
+              <Text style={styles.infoValue}>{vehicle?.model || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Type:</Text>
+              <Text style={styles.infoValue}>{vehicle?.type || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Couleur:</Text>
+              <Text style={styles.infoValue}>{vehicle?.color || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Marque:</Text>
+              <Text style={styles.infoValue}>{vehicle?.brand || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Préférences:</Text>
+              {profile?.preferences ? (
+                Object.entries(profile.preferences).map(([key, value]) => (
+                  <Text style={styles.infoValue} key={key}>{key}: {String(value)}</Text>
+                ))
+              ) : (
+                <Text style={styles.infoValue}>Non renseigné</Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setInfoVisible(false)}>
+              <Text style={styles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {/* Chat Area */}
       <View style={styles.chatArea}>
         {loading ? (
@@ -256,4 +316,61 @@ const styles = StyleSheet.create({
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
   errorText: { color: 'red', fontSize: 16, textAlign: 'center' },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    top: 24,
+    zIndex: 10,
+    padding: 8,
+  },
+  infoButton: {
+    position: 'absolute',
+    right: 16,
+    top: 24,
+    zIndex: 10,
+    padding: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'flex-start',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  infoLabel: {
+    fontWeight: 'bold',
+    marginTop: 12,
+    color: '#222',
+  },
+  infoValue: {
+    marginLeft: 8,
+    color: '#444',
+    marginBottom: 4,
+  },
+  closeButton: {
+    alignSelf: 'center',
+    marginTop: 20,
+    backgroundColor: '#009fe3',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 }); 

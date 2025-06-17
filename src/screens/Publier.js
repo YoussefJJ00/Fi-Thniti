@@ -4,12 +4,12 @@ import { db, auth } from '../../firebaseConfig';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Menu, Button as PaperButton, Checkbox } from 'react-native-paper';
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ANNONCE_STATUS } from '../utils/annonceStatus';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocationSelection } from '../utils/LocationSelectionContext';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyD3RXZKBSMx_G2_80SaVMPafleHWDnLHF8';
 
@@ -30,6 +30,7 @@ const Publier = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { departureLocation: routeDepartureLocation, arrivalLocation: routeArrivalLocation } = route.params || {};
+  const { setOnLocationSelected } = useLocationSelection();
 
   const handlePublish = async () => {
     if (!validateForm()) return;
@@ -83,13 +84,13 @@ const Publier = () => {
   const closeMenu = () => setVisible(false);
 
   const handleLocationSelect = (type) => {
+    setOnLocationSelected((departure, arrival) => {
+      setDepartureLocation(departure);
+      setArrivalLocation(arrival);
+    });
     navigation.navigate('MapScreen', {
       type,
       context: 'publish',
-      onLocationSelected: (departure, arrival) => {
-        setDepartureLocation(departure);
-        setArrivalLocation(arrival);
-      }
     });
   };
 

@@ -83,7 +83,7 @@ const Login = ({ navigation }) => {
         Alert.alert('Success', `Welcome back, ${email}!`);
         // Small delay to show success message
         setTimeout(() => {
-          navigation.replace('Main');
+          navigation.replace('Home');
         }, 1000);
       }
 

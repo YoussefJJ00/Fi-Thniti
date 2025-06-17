@@ -235,209 +235,23 @@ const MapScreen = () => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f7f8fa' }}>
-      {/* Map */}
-      <View style={{ flex: 1, marginTop: 12, marginHorizontal: 8, borderRadius: 24, overflow: 'hidden' }}>
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          ref={mapRef}
-          style={{ flex: 1 }}
-          initialRegion={initialRegion}
-          region={initialRegion}
-          onPress={handleMapPress}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-        >
-          {predefinedLocations.map((location, index) => (
-            <Marker
-              key={index}
-              coordinate={{ latitude: location.latitude, longitude: location.longitude }}
-              title={location.name}
-              onPress={() => handlePredefinedLocationSelect(location)}
-            >
-              {/* No plain text children here, only use JSX or leave empty */}
-            </Marker>
-          ))}
-
-          {routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#FF5733"
-              strokeWidth={4}
-              lineDashPattern={[10, 5]}
-            />
-          )}
-
-          {markerCoordinate && (
-            <Marker
-              coordinate={markerCoordinate}
-              title={selectedLocation?.name || 'Emplacement sélectionné'}
-            >
-              {/* No plain text children here, only use JSX or leave empty */}
-            </Marker>
-          )}
-        </MapView>
-      </View>
-
-      {/* Go Back Button - above the search bar */}
-      <TouchableOpacity
-        style={{
-          position: 'absolute',
-          top: 18,
-          left: 18,
-          zIndex: 10,
-          backgroundColor: '#fff',
-          borderRadius: 20,
-          padding: 8,
-          shadowColor: '#000',
-          shadowOpacity: 0.12,
-          shadowRadius: 6,
-          elevation: 4,
-        }}
-        onPress={() => navigation.goBack()}
-      >
-        <Ionicons name="arrow-back" size={22} color="#222" />
-      </TouchableOpacity>
-
-      {/* Search Bar */}
-      <View style={[styles.searchBar, { marginTop: 16 }]}> {/* marginTop: 16 for compact spacing */}
-        <Ionicons name="search" size={20} color="#bbb" style={{ marginRight: 8 }} />
-        <GooglePlacesAutocomplete
-          ref={searchRef}
-          {...googlePlacesProps}
-          textInputProps={{
-            ...googlePlacesProps.textInputProps,
-            value: search,
-            onChangeText: setSearch,
-            style: { flex: 1, fontSize: 16, color: '#222', backgroundColor: 'transparent', borderWidth: 0 },
-          }}
-          styles={{
-            textInputContainer: { backgroundColor: 'transparent', borderTopWidth: 0, borderBottomWidth: 0 },
-            listView: { borderRadius: 16, marginTop: 8, backgroundColor: '#fff', elevation: 4 },
-          }}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} style={{ marginLeft: 8 }}>
-            <Ionicons name="close-circle" size={20} color="#bbb" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Floating Action Button (suggestions) */}
-      <TouchableOpacity
-        style={[styles.floatingButton, { top: undefined, bottom: 90, alignSelf: 'center' }]}
-        onPress={() => Alert.alert('Suggestions', 'Voir les suggestions')}
-      >
-        <Text style={{ color: '#009fe3', fontWeight: 'bold', fontSize: 16 }}>Voir les suggestions</Text>
-      </TouchableOpacity>
-
-      {departureLocation && destinationLocation && (
-        <TouchableOpacity 
-          style={styles.confirmButton}
-          onPress={handleConfirmLocation}
-        >
-          <Text style={styles.confirmButtonText}>
-            Confirmer les emplacements
-          </Text>
-        </TouchableOpacity>
-      )}
-    </SafeAreaView>
+    <View style={styles.container}>
+      <Text style={styles.text}>Map screen temporarily removed. Will be rebuilt from scratch.</Text>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    paddingTop: 40,
-    paddingBottom: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 4,
-    flexDirection: 'row',
     justifyContent: 'center',
-    position: 'relative',
-  },
-  headerBackBtn: {
-    position: 'absolute',
-    left: 16,
-    top: 40,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    padding: 8,
-    zIndex: 2,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#222',
-    textAlign: 'center',
-    flex: 1,
-  },
-  searchBar: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    marginHorizontal: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 2,
-  },
-  mapContainer: {
-    flex: 1,
-    marginTop: 16,
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginHorizontal: 8,
-  },
-  map: {
-    flex: 1,
-  },
-  floatingButton: {
-    position: 'absolute',
-    top: 120,
-    alignSelf: 'center',
     backgroundColor: '#fff',
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-    zIndex: 10,
   },
-  confirmButton: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: '#2196F3',
-    padding: 15,
-    borderRadius: 8,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  confirmButtonText: {
-    color: 'white',
+  text: {
+    fontSize: 18,
+    color: '#333',
     textAlign: 'center',
-    fontSize: 16,
-    fontWeight: 'bold',
+    padding: 20,
   },
-});
-
-export default MapScreen; 
+}); 

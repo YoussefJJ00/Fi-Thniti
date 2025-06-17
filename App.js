@@ -17,14 +17,11 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { StatusBar } from "expo-status-bar";
 import { Provider as PaperProvider } from "react-native-paper";
 import { GluestackUIProvider } from "@gluestack-ui/themed";
-import { NativeWindStyleSheet } from "nativewind";
 import { LogBox } from 'react-native';
 import { enableScreens } from 'react-native-screens';
 import MainTabs from './src/navigation/MainTabs';
-
-NativeWindStyleSheet.setOutput({
-  default: "native",
-});
+import { LocationSelectionProvider } from './src/utils/LocationSelectionContext';
+import RootNavigator from './src/navigation/RootNavigator';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,30 +38,8 @@ LogBox.ignoreLogs([
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <PaperProvider>
-        <StatusBar style="auto" />
-        <NavigationContainer>
-          <Stack.Navigator
-            initialRouteName="Login"
-            screenOptions={{
-              headerShown: false,
-              cardStyle: { backgroundColor: '#fff' }
-            }}
-          >
-            <Stack.Screen name="Login" component={Login} />
-            <Stack.Screen name="Register" component={Register} />
-            <Stack.Screen name="Main" component={MainTabs} />
-            <Stack.Screen 
-              name="MapScreen" 
-              component={MapScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </PaperProvider>
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <RootNavigator />
+    </NavigationContainer>
   );
 }

@@ -14,7 +14,7 @@ import {
   Modal
 } from 'react-native';
 import { db, auth } from '../../firebaseConfig';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker'; // Importing expo-image-picker
 import Icon from 'react-native-vector-icons/Feather'; // Ensure you have this package installed
 import firebase from 'firebase/app'; // Ensure you have Firebase initialized
@@ -99,6 +99,7 @@ const Profile = () => {
         setEmail(data.email || '');
         setPhoneNumber(data.tel || '');
         setPreferences(data.preferences || preferences); // Load preferences if available
+        setVehicle(data.vehicle || vehicle); // Load vehicle data if available
       } else {
         Alert.alert('Error', 'User data not found');
       }
@@ -245,6 +246,26 @@ const Profile = () => {
     const last = cleaned.slice(3, 7).padStart(4, '0');
     return `${last} تونس ${first}`;
   }
+
+  const saveVehicle = async (vehicleData) => {
+    try {
+      const userId = auth.currentUser.uid;
+      await updateDoc(doc(db, 'users', userId), {
+        vehicle: {
+          brand: vehicleData.brand,
+          model: vehicleData.model,
+          type: vehicleData.type,
+          color: vehicleData.color,
+          licensePlate: vehicleData.licensePlate,
+          seats: vehicleData.seats,
+        }
+      });
+      Alert.alert('Succès', 'Véhicule sauvegardé avec succès !');
+    } catch (e) {
+      console.log('Error saving vehicle:', e);
+      Alert.alert('Erreur', "Impossible de sauvegarder le véhicule.\n" + (e.message || e));
+    }
+  };
 
   if (isLoading) {
     return (
@@ -434,12 +455,9 @@ const Profile = () => {
               <View style={styles.modalInput}>
                 <Picker
                   selectedValue={vehicle.brand}
-                  onValueChange={val => {
-                    setVehicle(v => ({ ...v, brand: val, model: '' }));
-                    setModels(val && popularModels[val] ? popularModels[val] : []);
-                  }}
+                  onValueChange={(itemValue) => setVehicle({ ...vehicle, brand: itemValue })}
                 >
-                  <Picker.Item label="Vehicle Brand (ex Citroën)" value="" />
+                  <Picker.Item label="Select brand" value="" />
                   {brands.map((b, i) => <Picker.Item key={i} label={b} value={b} />)}
                 </Picker>
               </View>
@@ -449,7 +467,7 @@ const Profile = () => {
               <View style={styles.modalInput}>
                 <Picker
                   selectedValue={vehicle.model}
-                  onValueChange={val => setVehicle(v => ({ ...v, model: val }))}
+                  onValueChange={(itemValue) => setVehicle(v => ({ ...v, model: itemValue }))}
                   enabled={!!vehicle.brand}
                 >
                   <Picker.Item label="Vehicle Model" value="" />
@@ -461,7 +479,7 @@ const Profile = () => {
             <View style={styles.modalInput}>
               <Picker
                 selectedValue={vehicle.type}
-                onValueChange={val => setVehicle(v => ({ ...v, type: val }))}
+                onValueChange={(itemValue) => setVehicle(v => ({ ...v, type: itemValue }))}
                 enabled={!!vehicle.type}
               >
                 <Picker.Item label="Vehicle Type (ex - Hatchback)" value="" />
@@ -472,7 +490,7 @@ const Profile = () => {
             <View style={styles.modalInput}>
               <Picker
                 selectedValue={vehicle.seats}
-                onValueChange={val => setVehicle(v => ({ ...v, seats: val }))}
+                onValueChange={(itemValue) => setVehicle(v => ({ ...v, seats: itemValue }))}
               >
                 <Picker.Item label="No. of seats" value="" />
                 {seatsOptions.map((s, i) => <Picker.Item key={i} label={s} value={s} />)}
@@ -482,7 +500,7 @@ const Profile = () => {
             <View style={styles.modalInput}>
               <Picker
                 selectedValue={vehicle.color}
-                onValueChange={val => setVehicle(v => ({ ...v, color: val }))}
+                onValueChange={(itemValue) => setVehicle(v => ({ ...v, color: itemValue }))}
               >
                 <Picker.Item label="Colour of vehicle" value="" />
                 {colors.map((c, i) => <Picker.Item key={i} label={c} value={c} />)}
@@ -513,8 +531,8 @@ const Profile = () => {
               </TouchableOpacity>
               <Text style={{ marginLeft: 8 }}>Save this as My Vehicle</Text>
             </View>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveVehicle}>
-              <Text style={styles.saveButtonText}>Add vehicle</Text>
+            <TouchableOpacity style={styles.saveButton} onPress={() => saveVehicle(vehicle)}>
+              <Text style={styles.saveButtonText}>Save Vehicle</Text>
             </TouchableOpacity>
           </View>
         </View>

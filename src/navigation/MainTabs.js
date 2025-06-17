@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import RechercherStack from './RechercherStack';
 import Publier         from '../screens/Publier';
 import VosTrajets      from '../screens/VosTrajets';
-import Messages        from '../screens/Messages';
+import Conversations   from '../screens/Conversations';
 import Profil          from '../screens/Profil';
 
 const Tab = createBottomTabNavigator();
@@ -37,7 +37,7 @@ export default function MainTabs() {
       <Tab.Screen  name="Rechercher" component={RechercherStack} />
       <Tab.Screen  name="Publier"     component={Publier} />
       <Tab.Screen  name="VosTrajets"  component={VosTrajets} />
-      <Tab.Screen  name="Messages"    component={Messages} />
+      <Tab.Screen  name="Messages"    component={Conversations} />
       <Tab.Screen  name="Profil"      component={Profil} />
       
     </Tab.Navigator>
