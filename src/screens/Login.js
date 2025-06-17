@@ -80,11 +80,7 @@ const Login = ({ navigation }) => {
       const userProfile = await checkUserProfile(userCredential.user.uid);
       
       if (userProfile) {
-        Alert.alert('Success', `Welcome back, ${email}!`);
-        // Small delay to show success message
-        setTimeout(() => {
-          navigation.replace('Home');
-        }, 1000);
+        navigation.replace('Home');
       }
 
       // Example of showing a toast

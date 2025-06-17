@@ -20,6 +20,8 @@ import Icon from 'react-native-vector-icons/Feather'; // Ensure you have this pa
 import firebase from 'firebase/app'; // Ensure you have Firebase initialized
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
+import { launchCameraAsync, launchImageLibraryAsync, MediaTypeOptions } from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
 
 const Profile = () => {
   const [userData, setUserData] = useState(null);
@@ -56,6 +58,8 @@ const Profile = () => {
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingTypeSeats, setLoadingTypeSeats] = useState(false);
   const [licensePlate, setLicensePlate] = useState('');
+  const [showProfilePicModal, setShowProfilePicModal] = useState(false);
+  const [pendingProfilePic, setPendingProfilePic] = useState(null);
 
   const API_KEY = 'pNQEiaCh3YTD2L4oBo4qhA==AMXUJZqejCUPKdmS';
 
@@ -75,6 +79,8 @@ const Profile = () => {
     'Ford': ['Fiesta', 'Focus', 'Kuga', 'Puma', 'EcoSport'],
     'Hyundai': ['i10', 'i20', 'i30', 'Tucson', 'Kona']
   };
+
+  const navigation = useNavigation();
 
   useEffect(() => {
     fetchUserData();
@@ -133,25 +139,23 @@ const Profile = () => {
     if (!result.canceled) {
       const selectedUri = result.assets[0].uri;
       console.log("Selected Image URI:", selectedUri);
-      await uploadImageToStorage(selectedUri);  // Proceed with uploading the image
+      await updateProfilePicture(selectedUri);  // Proceed with uploading the image
     } else {
       console.log("Image selection was canceled.");
     }
   };
   
-  const uploadImageToStorage = async (uri) => {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const storageRef = firebase.storage().ref().child(`profilePictures/${userId}`);
-    await storageRef.put(blob);
-    const downloadURL = await storageRef.getDownloadURL();
-    await updateProfilePicture(downloadURL);
-  };
-
-  const updateProfilePicture = async (imageUrl) => {
+  const updateProfilePicture = (imageUri) => {
+    console.log('Updating profile picture to:', imageUri, userId);
     const userRef = doc(db, 'users', userId);
-    await setDoc(userRef, { profilePicture: imageUrl }, { merge: true }); // Use profilePicture field
-    Alert.alert('Success', 'Profile picture updated successfully');
+    return setDoc(userRef, { profilePicture: imageUri }, { merge: true })
+      .then(() => {
+        Alert.alert('Success', 'Profile picture updated successfully');
+      })
+      .catch((error) => {
+        console.error('Erreur lors de la mise à jour de la photo de profil:', error);
+        Alert.alert('Erreur', "Impossible de mettre à jour la photo de profil.\n" + (error.message || error));
+      });
   };
 
   const handlePreferenceChange = (key) => {
@@ -284,7 +288,7 @@ const Profile = () => {
       >
         {/* Profile Image and Title */}
         <View style={styles.profileHeaderContainer}>
-          <TouchableOpacity onPress={selectProfilePicture} style={styles.profileImageContainer}> 
+          <TouchableOpacity onPress={() => setShowProfilePicModal(true)} style={styles.profileImageContainer}> 
             {userData?.profilePicture ? (
               <Image
                 source={{ uri: userData.profilePicture }}
@@ -377,6 +381,22 @@ const Profile = () => {
           </View>
           <TouchableOpacity style={styles.editBtn} onPress={() => setShowVehicleModal(true)}>
             <Text style={styles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Sign Out Button under vehicle section */}
+        <View style={{ width: '100%', alignItems: 'center', marginTop: 24, marginBottom: 32 }}>
+          <TouchableOpacity
+            style={[styles.saveButton, { backgroundColor: '#e53935', width: '88%' }]}
+            onPress={async () => {
+              try {
+                await auth.signOut();
+                navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+              } catch (error) {
+                Alert.alert('Erreur', "Impossible de se déconnecter.\n" + (error.message || error));
+              }
+            }}
+          >
+            <Text style={[styles.saveButtonText, { color: '#fff' }]}>Se déconnecter</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -533,6 +553,71 @@ const Profile = () => {
             </View>
             <TouchableOpacity style={styles.saveButton} onPress={() => saveVehicle(vehicle)}>
               <Text style={styles.saveButtonText}>Save Vehicle</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Profile Picture Modal */}
+      <Modal
+        visible={showProfilePicModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProfilePicModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { alignItems: 'center' }]}> 
+            <Text style={styles.modalTitle}>Changer la photo de profil</Text>
+            {pendingProfilePic ? (
+              <Image source={{ uri: pendingProfilePic }} style={{ width: 120, height: 120, borderRadius: 60, marginBottom: 16 }} />
+            ) : (
+              <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#eee', marginBottom: 16, justifyContent: 'center', alignItems: 'center' }}>
+                <Icon name="user" size={64} color="#ccc" />
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.saveButton, { width: '100%', marginBottom: 10 }]}
+              onPress={async () => {
+                const result = await launchCameraAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 1 });
+                if (!result.canceled && result.assets && result.assets[0].uri) {
+                  setPendingProfilePic(result.assets[0].uri);
+                }
+              }}
+            >
+              <Text style={styles.saveButtonText}>Prendre une photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, { width: '100%', marginBottom: 10 }]}
+              onPress={async () => {
+                const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 1 });
+                if (!result.canceled && result.assets && result.assets[0].uri) {
+                  setPendingProfilePic(result.assets[0].uri);
+                }
+              }}
+            >
+              <Text style={styles.saveButtonText}>Choisir depuis la galerie</Text>
+            </TouchableOpacity>
+            {pendingProfilePic && (
+              <TouchableOpacity
+                style={[styles.saveButton, { width: '100%', backgroundColor: '#009fe3' }]}
+                onPress={async () => {
+                  await updateProfilePicture(pendingProfilePic);
+                  setPendingProfilePic(null);
+                  setShowProfilePicModal(false);
+                  fetchUserData();
+                }}
+              >
+                <Text style={styles.saveButtonText}>Confirmer</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.saveButton, { width: '100%', backgroundColor: '#bbb', marginTop: 6 }]}
+              onPress={() => {
+                setPendingProfilePic(null);
+                setShowProfilePicModal(false);
+              }}
+            >
+              <Text style={[styles.saveButtonText, { color: '#fff' }]}>Annuler</Text>
             </TouchableOpacity>
           </View>
         </View>
