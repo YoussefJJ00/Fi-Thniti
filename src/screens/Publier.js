@@ -84,13 +84,13 @@ const Publier = () => {
   const closeMenu = () => setVisible(false);
 
   const handleLocationSelect = (type) => {
-    setOnLocationSelected((departure, arrival) => {
-      setDepartureLocation(departure);
-      setArrivalLocation(arrival);
-    });
     navigation.navigate('MapScreen', {
       type,
       context: 'publish',
+      onLocationSelected: (departure, arrival) => {
+        setDepartureLocation(departure);
+      setArrivalLocation(arrival);
+      }
     });
   };
 
