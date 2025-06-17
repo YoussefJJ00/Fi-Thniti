@@ -73,7 +73,7 @@ const MapScreen = () => {
 
   // Optimize Google Places Autocomplete
   const googlePlacesProps = {
-    placeholder: "Rechercher une ville en Tunisie",
+    placeholder: "Rechercher un lieu en Tunisie",
     minLength: 2,
     debounce: 400, // Increased debounce time
     enablePoweredByContainer: false, // Remove "Powered by Google" container
@@ -82,7 +82,8 @@ const MapScreen = () => {
       key: 'AIzaSyD3RXZKBSMx_G2_80SaVMPafleHWDnLHF8',
       language: 'fr',
       components: 'country:tn',
-      types: ['(cities)'],
+      // Remove or broaden types to allow all places
+      // types: '(establishment)',
     },
     textInputProps: {
       placeholderTextColor: '#666',
@@ -198,30 +199,58 @@ const MapScreen = () => {
     try {
       const { coordinate } = event.nativeEvent;
       let locationName = '';
+      let foundPlace = null;
+      const apiKey = 'AIzaSyD3RXZKBSMx_G2_80SaVMPafleHWDnLHF8';
+      // 1. Try Google Places Nearby Search for place types
       try {
-        const geocode = await Location.reverseGeocodeAsync({
-          latitude: coordinate.latitude,
-          longitude: coordinate.longitude,
-        });
-        if (geocode && geocode.length > 0) {
-          const place = geocode[0];
-          // Only keep city, region (state), and street (avenue)
-          const city = place.city || '';
-          const region = place.region || '';
-          const street = place.street || '';
-          // If all are missing, show error
-          if (!city && !region && !street) {
+        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${coordinate.latitude},${coordinate.longitude}&radius=50&types=airport|restaurant|hotel|point_of_interest&key=${apiKey}&language=fr`;
+        const response = await fetch(nearbyUrl);
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          // Find the first relevant place
+          foundPlace = data.results.find(place =>
+            place.types.some(type => ['airport', 'restaurant', 'hotel', 'point_of_interest'].includes(type))
+          ) || data.results[0];
+        }
+      } catch (err) {
+        // Ignore, fallback to reverse geocode
+      }
+      if (foundPlace) {
+        locationName = foundPlace.name;
+      } else {
+        // 2. Fallback to reverse geocode
+        try {
+          const geocode = await Location.reverseGeocodeAsync({
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+          });
+          if (geocode && geocode.length > 0) {
+            const place = geocode[0];
+            const city = place.city || '';
+            const region = place.region || '';
+            const street = place.street || '';
+            console.log({
+              place,
+              city,
+              region,
+              street, 
+            })
+            if (!city && !region && !street) {
+              Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+              return;
+            }
+            locationName = [street, city, region].filter(Boolean).join(', ');
+          } else {
             Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
             return;
           }
-          // Compose minimal name
-          locationName = [street, city, region].filter(Boolean).join(', ');
-        } else {
+        } catch (geoError) {
           Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
           return;
         }
-      } catch (geoError) {
-        Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+      }
+      if (!locationName) {
+        Alert.alert('Erreur', 'Aucun lieu d\'intérêt trouvé à cet endroit.');
         return;
       }
       const location = {
@@ -245,6 +274,45 @@ const MapScreen = () => {
       console.error('Error handling map press:', error);
       Alert.alert('Error', 'Could not select this location. Please try again.');
     }
+  };
+
+  // Handle POI (Point of Interest) click
+  const handlePoiClick = async (event) => {
+    const poi = event.nativeEvent;
+    let locationName = poi.name;
+    // Try to get city and region from reverse geocode
+    try {
+      const geocode = await Location.reverseGeocodeAsync({
+        latitude: poi.coordinate.latitude,
+        longitude: poi.coordinate.longitude,
+      });
+      if (geocode && geocode.length > 0) {
+        const place = geocode[0];
+        const city = place.city || '';
+        const region = place.region || '';
+        const extra = [city, region].filter(Boolean).join(', ');
+        if (extra) {
+          locationName = `${poi.name}, ${extra}`;
+        }
+      }
+    } catch (err) {
+      // Ignore, fallback to POI name only
+    }
+    const location = {
+      latitude: poi.coordinate.latitude,
+      longitude: poi.coordinate.longitude,
+      name: locationName,
+    };
+    if (!departureLocation) {
+      setDepartureLocation(location);
+      Alert.alert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`);
+    } else if (!destinationLocation) {
+      setDestinationLocation(location);
+      Alert.alert('Destination sélectionnée', `Destination: ${location.name}`);
+    } else {
+      Alert.alert('Erreur', 'Les deux emplacements sont déjà sélectionnés.');
+    }
+    setMarkerCoordinate(location);
   };
 
   const handleConfirmLocation = () => {
@@ -308,6 +376,7 @@ const MapScreen = () => {
           onPress={handleMapPress}
           showsUserLocation={true}
           showsMyLocationButton={true}
+          onPoiClick={handlePoiClick}
         >
           {predefinedLocations.map((location, index) => (
             <Marker
