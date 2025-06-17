@@ -29,12 +29,19 @@ export default function Messages({ route, navigation }) {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const userDoc = await getDoc(doc(db, 'users', otherUserId));
-        if (userDoc.exists()) {
-          setProfile(userDoc.data());
+        const userDocRef = doc(db, 'users', otherUserId);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          const vehicle = userData.vehicle;
+          setProfile(userData);
+          setVehicle(vehicle);
         }
+        console.log('userDoc', userDocSnap.data());
+        console.log('vehicle', vehicle);
       } catch (e) {
         setProfile(null);
+        setVehicle(null);
       }
     };
     if (otherUserId) fetchProfile();
@@ -63,20 +70,6 @@ export default function Messages({ route, navigation }) {
     });
     return unsubscribe;
   }, [currentUserId, otherUserId]);
-
-  // Fetch vehicle
-  useEffect(() => {
-    const fetchVehicle = async () => {
-      if (!otherUserId) return;
-      const vehicleRef = collection(db, 'users', otherUserId, 'vehicle');
-      const vehicleSnap = await getDocs(vehicleRef);
-      if (!vehicleSnap.empty) {
-        // If user can have multiple vehicles, pick the first or the default
-        setVehicle(vehicleSnap.docs[0].data());
-      }
-    };
-    fetchVehicle();
-  }, [otherUserId]);
 
   // Send message
   const sendMessage = async () => {
@@ -149,32 +142,51 @@ export default function Messages({ route, navigation }) {
         transparent={true}
         onRequestClose={() => setInfoVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Informations de l'utilisateur</Text>
-            <ScrollView>
+        <View style={[styles.modalOverlay, { flex: 1 }]}> 
+          <View style={[styles.modalContent, { flex: 1, width: '100%', maxHeight: '100%', borderRadius: 0, padding: 0 }]}> 
+            <Text style={[styles.modalTitle, { marginTop: 32 }]}>Informations de l'utilisateur</Text>
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
               <Text style={styles.infoLabel}>Téléphone:</Text>
-              <Text style={styles.infoValue}>{profile?.phone || 'Non renseigné'}</Text>
-              <Text style={styles.infoLabel}>Plaque d'immatriculation:</Text>
-              <Text style={styles.infoValue}>{vehicle?.licensePlate || 'Non renseigné'}</Text>
-              <Text style={styles.infoLabel}>Modèle:</Text>
-              <Text style={styles.infoValue}>{vehicle?.model || 'Non renseigné'}</Text>
-              <Text style={styles.infoLabel}>Type:</Text>
-              <Text style={styles.infoValue}>{vehicle?.type || 'Non renseigné'}</Text>
-              <Text style={styles.infoLabel}>Couleur:</Text>
-              <Text style={styles.infoValue}>{vehicle?.color || 'Non renseigné'}</Text>
-              <Text style={styles.infoLabel}>Marque:</Text>
-              <Text style={styles.infoValue}>{vehicle?.brand || 'Non renseigné'}</Text>
+              <Text style={styles.infoValue}>{profile?.tel || 'Non renseigné'}</Text>
+              <Text style={styles.infoLabel}>Véhicule:</Text>
+              {vehicle ? (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={styles.infoValue}>Plaque: {vehicle.licensePlate || 'Non renseigné'}</Text>
+                  <Text style={styles.infoValue}>Marque: {vehicle.brand || 'Non renseigné'}</Text>
+                  <Text style={styles.infoValue}>Modèle: {vehicle.model || 'Non renseigné'}</Text>
+                  <Text style={styles.infoValue}>Type: {vehicle.type || 'Non renseigné'}</Text>
+                  <Text style={styles.infoValue}>Couleur: {vehicle.color || 'Non renseigné'}</Text>
+                  <Text style={styles.infoValue}>Sièges: {vehicle.seats || 'Non renseigné'}</Text>
+                  <Text style={styles.infoValue}>Par défaut: {vehicle.isDefault ? 'Oui' : 'Non'}</Text>
+                </View>
+              ) : (
+                <Text style={styles.infoValue}>Non renseigné</Text>
+              )}
               <Text style={styles.infoLabel}>Préférences:</Text>
               {profile?.preferences ? (
-                Object.entries(profile.preferences).map(([key, value]) => (
-                  <Text style={styles.infoValue} key={key}>{key}: {String(value)}</Text>
-                ))
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 8 }}>
+                    <Ionicons name="chatbubbles-outline" size={18} color={profile.preferences.isTalkative ? '#009fe3' : '#bbb'} />
+                    <Text style={{ marginLeft: 4 }}>{profile.preferences.isTalkative ? 'Bavard(e)' : 'Discret(e)'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 8 }}>
+                    <Ionicons name="cafe-outline" size={18} color={profile.preferences.isSmoker ? '#009fe3' : '#bbb'} />
+                    <Text style={{ marginLeft: 4 }}>{profile.preferences.isSmoker ? 'Fumeur(se)' : 'Non-fumeur(se)'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 8 }}>
+                    <Ionicons name="musical-notes-outline" size={18} color={profile.preferences.musicPreference ? '#009fe3' : '#bbb'} />
+                    <Text style={{ marginLeft: 4 }}>{profile.preferences.musicPreference ? profile.preferences.musicPreference : 'Pas de préférence musicale'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 8 }}>
+                    <Ionicons name="paw-outline" size={18} color={profile.preferences.hasAnimals ? '#009fe3' : '#bbb'} />
+                    <Text style={{ marginLeft: 4 }}>{profile.preferences.hasAnimals ? 'Animaux' : 'Sans animaux'}</Text>
+                  </View>
+                </View>
               ) : (
                 <Text style={styles.infoValue}>Non renseigné</Text>
               )}
             </ScrollView>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setInfoVisible(false)}>
+            <TouchableOpacity style={[styles.closeButton, { alignSelf: 'center', marginBottom: 24 }]} onPress={() => setInfoVisible(false)}>
               <Text style={styles.closeButtonText}>Fermer</Text>
             </TouchableOpacity>
           </View>

@@ -351,7 +351,6 @@ const MapScreen = () => {
     );
     getDocs(postingsQ)
       .then(postingsSnap => {
-        console.log('postingsSnap', postingsSnap);
         setPostingSuggestions(postingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       })
       .catch(err => {
@@ -368,7 +367,6 @@ const MapScreen = () => {
     );
     getDocs(ridesQ)
       .then(async ridesSnap => {
-        console.log('ridesSnap', ridesSnap);
         // For each reservation, fetch the corresponding annonce
         const rides = await Promise.all(
           ridesSnap.docs.map(async (resDoc) => {
@@ -525,7 +523,7 @@ const MapScreen = () => {
             </Marker>
           )}
         </MapView>
-      </View>
+    </View>
       {/* Go Back Button - above the search bar */}
       <TouchableOpacity
         style={{
@@ -661,6 +659,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-});
+}); 
 
 export default MapScreen; 
