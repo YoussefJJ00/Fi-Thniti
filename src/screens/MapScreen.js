@@ -194,13 +194,40 @@ const MapScreen = () => {
     }
   };
 
-  const handleMapPress = (event) => {
+  const handleMapPress = async (event) => {
     try {
       const { coordinate } = event.nativeEvent;
+      let locationName = '';
+      try {
+        const geocode = await Location.reverseGeocodeAsync({
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude,
+        });
+        if (geocode && geocode.length > 0) {
+          const place = geocode[0];
+          // Only keep city, region (state), and street (avenue)
+          const city = place.city || '';
+          const region = place.region || '';
+          const street = place.street || '';
+          // If all are missing, show error
+          if (!city && !region && !street) {
+            Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+            return;
+          }
+          // Compose minimal name
+          locationName = [street, city, region].filter(Boolean).join(', ');
+        } else {
+          Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+          return;
+        }
+      } catch (geoError) {
+        Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+        return;
+      }
       const location = {
         latitude: coordinate.latitude,
         longitude: coordinate.longitude,
-        name: `Selected location (${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)})`,
+        name: locationName,
       };
 
       if (!departureLocation) {
