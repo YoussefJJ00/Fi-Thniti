@@ -158,31 +158,56 @@ const Publier = () => {
         <View style={styles.cardContainer}>
           <Text style={styles.cardTitle}>Publier une annonce</Text>
 
-          {/* Departure */}
-          <TouchableOpacity
-            style={styles.inputRow}
-            onPress={() => handleLocationSelect('departure')}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" />
+          {/* Departure & Destination with Flip Button on the right */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ flex: 1 }}>
+              {/* Departure */}
+              <TouchableOpacity
+                style={styles.inputRow}
+                onPress={() => handleLocationSelect('departure')}
+              >
+                <View style={styles.iconContainer}>
+                  <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" />
+                </View>
+                <Text style={styles.inputText}>
+                  {departureLocation ? departureLocation.name : 'Départ'}
+                </Text>
+              </TouchableOpacity>
+              {/* Destination */}
+              <TouchableOpacity
+                style={styles.inputRow}
+                onPress={() => handleLocationSelect('arrival')}
+              >
+                <View style={styles.iconContainer}>
+                  <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" />
+                </View>
+                <Text style={styles.inputText}>
+                  {arrivalLocation ? arrivalLocation.name : 'Destination'}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.inputText}>
-              {departureLocation ? departureLocation.name : 'Départ'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Destination */}
-          <TouchableOpacity
-            style={styles.inputRow}
-            onPress={() => handleLocationSelect('arrival')}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" />
+            {/* Flip Button on the right, centered */}
+            <View style={{ justifyContent: 'center', alignItems: 'center', height: 80, marginLeft: 20 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 20,
+                  padding: 8,
+                  elevation: 2,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.08,
+                  shadowRadius: 4,
+                }}
+                onPress={() => {
+                  setDepartureLocation(arrivalLocation);
+                  setArrivalLocation(departureLocation);
+                }}
+                accessibilityLabel="Inverser départ et destination"
+              >
+                <Ionicons name="sync" size={24} color="#009fe3" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.inputText}>
-              {arrivalLocation ? arrivalLocation.name : 'Destination'}
-            </Text>
-          </TouchableOpacity>
+          </View>
 
           {/* Combined Date & Time */}
           <View style={styles.inputRow}>

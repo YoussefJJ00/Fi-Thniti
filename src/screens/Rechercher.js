@@ -438,26 +438,52 @@ const Rechercher = ({ navigation }) => {
         elevation: 2,
         marginTop: 32,
       }}>
-        {/* Departure */}
-        <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}
-          onPress={() => handleLocationSelect('departure')}
-        >
-          <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#7a7a7a', fontSize: 16 }}>
-            {origin ? origin.name : 'Départ'}
-          </Text>
-        </TouchableOpacity>
-        {/* Destination */}
-        <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}
-          onPress={() => handleLocationSelect('arrival')}
-        >
-          <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#7a7a7a', fontSize: 16 }}>
-            {destination ? destination.name : 'Destination'}
-          </Text>
-        </TouchableOpacity>
+        {/* Departure & Destination with Flip Button on the right */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <View style={{ flex: 1 }}>
+            {/* Departure */}
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}
+              onPress={() => handleLocationSelect('departure')}
+            >
+              <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" style={{ marginRight: 16 }} />
+              <Text style={{ color: '#7a7a7a', fontSize: 16 }}>
+                {origin ? origin.name : 'Départ'}
+              </Text>
+            </TouchableOpacity>
+            {/* Destination */}
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}
+              onPress={() => handleLocationSelect('arrival')}
+            >
+              <Ionicons name="radio-button-off-outline" size={22} color="#7a7a7a" style={{ marginRight: 16 }} />
+              <Text style={{ color: '#7a7a7a', fontSize: 16 }}>
+                {destination ? destination.name : 'Destination'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {/* Flip Button on the right, centered */}
+          <View style={{ justifyContent: 'center', alignItems: 'center', height: 80, marginLeft: 20 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 20,
+                padding: 8,
+                elevation: 2,
+                shadowColor: '#000',
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+              }}
+              onPress={() => {
+                setOrigin(destination);
+                setDestination(origin);
+              }}
+              accessibilityLabel="Inverser départ et destination"
+            >
+              <Ionicons name="sync" size={24} color="#009fe3" />
+            </TouchableOpacity>
+          </View>
+        </View>
         {/* Date */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
           <TouchableOpacity
