@@ -7,8 +7,8 @@ import { doc, getDoc, collection, getDocs, setDoc, serverTimestamp } from 'fireb
 import { useToast, Toast } from "@gluestack-ui/themed";
 
 const Login = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('youssefghouilz@gmail.com');
+  const [password, setPassword] = useState('123456');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [verifyingUser, setVerifyingUser] = useState(false);

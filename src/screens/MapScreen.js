@@ -181,10 +181,7 @@ const MapScreen = () => {
         name: data.description,
       };
 
-      // Handle selection of predefined locations
-      handlePredefinedLocationSelect(location);
-
-      setMarkerCoordinate(location);
+      // Only zoom to the searched location, do not set marker or select
       mapRef.current?.animateToRegion({
         latitude: location.latitude,
         longitude: location.longitude,
@@ -206,12 +203,14 @@ const MapScreen = () => {
         name: `Selected location (${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)})`,
       };
 
-      // If a departure location is already set, set the destination
-      if (departureLocation && !destinationLocation) {
+      if (!departureLocation) {
+        setDepartureLocation(location);
+        Alert.alert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`);
+      } else if (!destinationLocation) {
         setDestinationLocation(location);
         Alert.alert('Destination sélectionnée', `Destination: ${location.name}`);
       } else {
-        Alert.alert('Erreur', 'Veuillez d\'abord sélectionner un point de départ.');
+        Alert.alert('Erreur', 'Les deux emplacements sont déjà sélectionnés.');
       }
 
       setMarkerCoordinate(location);
@@ -236,6 +235,41 @@ const MapScreen = () => {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f7f8fa' }}>
+      {/* Search Bar */}
+      <View style={{
+        position: 'absolute',
+        top: 60,
+        left: 0,
+        right: 0,
+        zIndex: 20,
+        paddingHorizontal: 16,
+      }}>
+        <GooglePlacesAutocomplete
+          ref={searchRef}
+          onPress={handlePlaceSelect}
+          {...googlePlacesProps}
+          styles={{
+            textInput: {
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: '#fff',
+              fontSize: 16,
+              paddingHorizontal: 16,
+              shadowColor: '#000',
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 2,
+            },
+            listView: {
+              backgroundColor: '#fff',
+              borderRadius: 12,
+              marginTop: 4,
+              elevation: 3,
+              zIndex: 30,
+            },
+          }}
+        />
+      </View>
       {/* Map */}
       <View style={{ flex: 1, marginTop: 12, marginHorizontal: 8, borderRadius: 24, overflow: 'hidden' }}>
         <MapView
@@ -278,14 +312,13 @@ const MapScreen = () => {
           )}
         </MapView>
       </View>
-
       {/* Go Back Button - above the search bar */}
       <TouchableOpacity
         style={{
           position: 'absolute',
           top: 18,
           left: 18,
-          zIndex: 10,
+          zIndex: 30,
           backgroundColor: '#fff',
           borderRadius: 20,
           padding: 8,
@@ -298,9 +331,6 @@ const MapScreen = () => {
       >
         <Ionicons name="arrow-back" size={22} color="#222" />
       </TouchableOpacity>
-
-      
-
       {/* Floating Action Button (suggestions) */}
       <TouchableOpacity
         style={[styles.floatingButton, { top: undefined, bottom: 90, alignSelf: 'center' }]}
@@ -308,7 +338,6 @@ const MapScreen = () => {
       >
         <Text style={{ color: '#009fe3', fontWeight: 'bold', fontSize: 16 }}>Voir les suggestions</Text>
       </TouchableOpacity>
-
       {departureLocation && destinationLocation && (
         <TouchableOpacity 
           style={styles.confirmButton}
