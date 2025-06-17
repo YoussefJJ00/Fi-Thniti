@@ -5,6 +5,8 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import { db, auth } from '../../firebaseConfig';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 
 const MapScreen = () => {
   const navigation = useNavigation();
@@ -32,6 +34,10 @@ const MapScreen = () => {
   const [departureLocation, setDepartureLocation] = useState(null);
   const [destinationLocation, setDestinationLocation] = useState(null);
   const [search, setSearch] = useState('');
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [rideSuggestions, setRideSuggestions] = useState([]);
+  const [postingSuggestions, setPostingSuggestions] = useState([]);
+  const userId = auth.currentUser?.uid;
 
   // Optimize location permission check
   useEffect(() => {
@@ -328,8 +334,120 @@ const MapScreen = () => {
     }
   };
 
+  // Fetch suggestions on open
+  const fetchSuggestions = async () => {
+    setSuggestionsVisible(true); // Always open modal
+    if (!userId) {
+      setPostingSuggestions([]);
+      setRideSuggestions([]);
+      return;
+    }
+    // Fetch last 3 trip postings (annonces)
+    const postingsQ = query(
+      collection(db, 'annonces'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(3)
+    );
+    getDocs(postingsQ)
+      .then(postingsSnap => {
+        console.log('postingsSnap', postingsSnap);
+        setPostingSuggestions(postingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      })
+      .catch(err => {
+        console.error('Error fetching postings:', err);
+        setPostingSuggestions([]);
+      });
+
+    // Fetch last 3 rides (reservations)
+    const ridesQ = query(
+      collection(db, 'reservations'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(3)
+    );
+    getDocs(ridesQ)
+      .then(async ridesSnap => {
+        console.log('ridesSnap', ridesSnap);
+        // For each reservation, fetch the corresponding annonce
+        const rides = await Promise.all(
+          ridesSnap.docs.map(async (resDoc) => {
+            const resData = resDoc.data();
+            if (!resData.annonceId) return null;
+            const annonceRef = doc(db, 'annonces', resData.annonceId);
+            const annonceSnap = await getDoc(annonceRef);
+            if (!annonceSnap.exists()) return null;
+            return { id: resDoc.id, ...resData, annonce: { id: annonceSnap.id, ...annonceSnap.data() } };
+          })
+        );
+        setRideSuggestions(rides.filter(Boolean));
+      })
+      .catch(err => {
+        console.error('Error fetching rides:', err);
+        setRideSuggestions([]);
+      });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f7f8fa' }}>
+      {/* Suggestions Modal */}
+      {suggestionsVisible && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.3)',
+          zIndex: 100,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '85%', maxHeight: '80%' }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 10 }}>Suggestions récentes</Text>
+            <Text style={{ fontWeight: 'bold', marginTop: 8 }}>Vos derniers trajets réservés :</Text>
+            {rideSuggestions.length === 0 && <Text style={{ color: '#888', marginBottom: 8 }}>Aucun trajet réservé récemment.</Text>}
+            {rideSuggestions.map((ride, idx) => (
+              <TouchableOpacity
+                key={ride.id}
+                style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#eee' }}
+                onPress={() => {
+                  if (ride.annonce?.lieuxdepart && ride.annonce?.lieuxarrivee) {
+                    setDepartureLocation(ride.annonce.lieuxdepart);
+                    setDestinationLocation(ride.annonce.lieuxarrivee);
+                    setSuggestionsVisible(false);
+                  }
+                }}
+              >
+                <Text style={{ fontSize: 15 }}>{ride.annonce?.lieuxdepart?.name || 'Départ inconnu'} → {ride.annonce?.lieuxarrivee?.name || 'Arrivée inconnue'}</Text>
+              </TouchableOpacity>
+            ))}
+            <Text style={{ fontWeight: 'bold', marginTop: 16 }}>Vos derniers trajets publiés :</Text>
+            {postingSuggestions.length === 0 && <Text style={{ color: '#888', marginBottom: 8 }}>Aucune annonce récente.</Text>}
+            {postingSuggestions.map((post, idx) => (
+              <TouchableOpacity
+                key={post.id}
+                style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#eee' }}
+                onPress={() => {
+                  if (post.lieuxdepart && post.lieuxarrivee) {
+                    setDepartureLocation(post.lieuxdepart);
+                    setDestinationLocation(post.lieuxarrivee);
+                    setSuggestionsVisible(false);
+                  }
+                }}
+              >
+                <Text style={{ fontSize: 15 }}>{post.lieuxdepart?.name || 'Départ inconnu'} → {post.lieuxarrivee?.name || 'Arrivée inconnue'}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={{ marginTop: 18, alignSelf: 'center', backgroundColor: '#009fe3', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 10 }}
+              onPress={() => setSuggestionsVisible(false)}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       {/* Search Bar */}
       <View style={{
         position: 'absolute',
@@ -430,7 +548,9 @@ const MapScreen = () => {
       {/* Floating Action Button (suggestions) */}
       <TouchableOpacity
         style={[styles.floatingButton, { top: undefined, bottom: 90, alignSelf: 'center' }]}
-        onPress={() => Alert.alert('Suggestions', 'Voir les suggestions')}
+        onPress={async () => {
+          await fetchSuggestions();
+        }}
       >
         <Text style={{ color: '#009fe3', fontWeight: 'bold', fontSize: 16 }}>Voir les suggestions</Text>
       </TouchableOpacity>
