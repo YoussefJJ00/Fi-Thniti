@@ -690,7 +690,7 @@ This project is proprietary software for the Tunisian market.
 
 For issues or questions:
 - **GitHub Issues:** [Create an issue](https://github.com/YoussefJJ00/Fi-Thniti/issues)
-- **Email:** support@fithniti.tn
+- **Email:** youssefghouilz@gmail.com
 
 ---
 
@@ -706,7 +706,7 @@ For issues or questions:
 
 ---
 
-**Last Updated:** April 2026  
+**Last Updated:** July 2025  
 **Version:** 1.0.0  
-**Status:** Active Development
+**Status:** Closed Development
 
