@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { db, auth } from '../../firebaseConfig';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -10,6 +10,7 @@ import { ANNONCE_STATUS } from '../utils/annonceStatus';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocationSelection } from '../utils/LocationSelectionContext';
+import ModernAlert from '../components/ModernAlert';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyD3RXZKBSMx_G2_80SaVMPafleHWDnLHF8';
 
@@ -25,6 +26,12 @@ const Publier = () => {
   const [nbrPlace, setNbrPlace] = useState('');
   const [prix, setPrix] = useState('');
   const [visible, setVisible] = useState(false);
+  const [climatise, setClimatise] = useState(false);
+  const [confort, setConfort] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertImage, setAlertImage] = useState(null);
 
   const userId = auth.currentUser ? auth.currentUser.uid : null;
   const navigation = useNavigation();
@@ -38,7 +45,7 @@ const Publier = () => {
     try {
       const user = auth.currentUser;
       if (!user) {
-        Alert.alert('Erreur', 'Vous devez être connecté pour publier une annonce.');
+        showAlert('Erreur', 'Vous devez être connecté pour publier une annonce.', 'error');
         return;
       }
 
@@ -52,6 +59,8 @@ const Publier = () => {
         prix: Number(prix),
         nbrplace: Number(nbrPlace),
         aller_retour: allerRetour,
+        climatise,
+        confort,
         etat: ANNONCE_STATUS.ACTIVE,
         reservedSeats: 0,
         passengerRequests: [],
@@ -66,17 +75,19 @@ const Publier = () => {
         isDriver: true
       });
 
-      Alert.alert('Succès', 'Votre annonce a été publiée avec succès!');
+      showAlert('Succès', 'Votre annonce a été publiée avec succès!', 'success');
       setDescription('');
       setDepartureLocation(null);
       setArrivalLocation(null);
       setNbrPlace('');
       setPrix('');
       setAllerRetour(false);
+      setClimatise(false);
+      setConfort(false);
       setDateTime(null);
     } catch (error) {
       console.error('Error publishing annonce:', error);
-      Alert.alert('Erreur', 'Impossible de publier l\'annonce. Veuillez réessayer.');
+      showAlert('Erreur', 'Impossible de publier l\'annonce. Veuillez réessayer.', 'error');
     }
   };
 
@@ -119,37 +130,48 @@ const Publier = () => {
 
   const validateForm = () => {
     if (!departureLocation) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un lieu de départ');
+      showAlert('Erreur', 'Veuillez sélectionner un lieu de départ', 'error');
       return false;
     }
 
     if (!arrivalLocation) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un lieu d\'arrivée');
+      showAlert('Erreur', 'Veuillez sélectionner un lieu d\'arrivée', 'error');
       return false;
     }
 
     if (!description.trim()) {
-      Alert.alert('Erreur', 'Veuillez ajouter une description');
+      showAlert('Erreur', 'Veuillez ajouter une description', 'error');
       return false;
     }
 
-    if (!nbrPlace || parseInt(nbrPlace) <= 0 || parseInt(nbrPlace) > 5) {
-      Alert.alert('Erreur', 'Le nombre de places doit être entre 1 et 5');
+    if (!nbrPlace || parseInt(nbrPlace) <= 0 || parseInt(nbrPlace) > 4) {
+      showAlert('Erreur', 'Le nombre de places doit être entre 1 et 4', 'error');
       return false;
     }
 
     if (!prix || parseFloat(prix) <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un prix valide');
+      showAlert('Erreur', 'Veuillez entrer un prix valide', 'error');
       return false;
     }
 
     const now = new Date();
     if (dateTime < now) {
-      Alert.alert('Erreur', 'La date de départ doit être dans le futur');
+      showAlert('Erreur', 'La date de départ doit être dans le futur', 'error');
       return false;
     }
 
     return true;
+  };
+
+  const showAlert = (title, message, type = 'error') => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    if (type === 'success') {
+      setAlertImage(require('../../assets/images/check.png'));
+    } else {
+      setAlertImage(null);
+    }
+    setAlertVisible(true);
   };
 
   return (
@@ -282,7 +304,7 @@ const Publier = () => {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.seatButton}
-              onPress={() => setNbrPlace(prev => (parseInt(prev || '1', 10) < 5 ? (parseInt(prev || '1', 10) + 1).toString() : '5'))}
+              onPress={() => setNbrPlace(prev => (parseInt(prev || '1', 10) < 4 ? (parseInt(prev || '1', 10) + 1).toString() : '4'))}
             >
               <Ionicons name="add-circle-outline" size={24} color="#009fe3" />
             </TouchableOpacity>
@@ -320,6 +342,16 @@ const Publier = () => {
               onPress={() => setAllerRetour(!allerRetour)}
             />
             <Text style={styles.checkboxLabel}>Aller-Retour</Text>
+            <Checkbox
+              status={climatise ? 'checked' : 'unchecked'}
+              onPress={() => setClimatise(!climatise)}
+            />
+            <Text style={styles.checkboxLabel}>Climatisé</Text>
+            <Checkbox
+              status={confort ? 'checked' : 'unchecked'}
+              onPress={() => setConfort(!confort)}
+            />
+            <Text style={styles.checkboxLabel}>Confort</Text>
           </View>
 
           {/* Publish Button */}
@@ -331,6 +363,14 @@ const Publier = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <ModernAlert
+        visible={alertVisible}
+        onClose={() => setAlertVisible(false)}
+        title={alertTitle}
+        message={alertMessage}
+        image={alertImage}
+        buttonText="OK"
+      />
     </SafeAreaView>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -12,7 +12,8 @@ import {
   ScrollView,
   Modal,
   Platform,
-  StatusBar
+  StatusBar,
+  KeyboardAvoidingView
 } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -27,6 +28,7 @@ const Register = ({ navigation }) => {
   const [dateOfBirth, setDateOfBirth] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [receivePromos, setReceivePromos] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -34,6 +36,23 @@ const Register = ({ navigation }) => {
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempDate, setTempDate] = useState(new Date());
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  const scrollViewRef = useRef(null);
+  const refs = {
+    firstName: useRef(null),
+    lastName: useRef(null),
+    phone: useRef(null),
+    email: useRef(null),
+    password: useRef(null),
+  };
+
+  // Reset scroll position on mount/focus
+  React.useEffect(() => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, []);
 
   // Format date for display
   const formatDate = (date) => {
@@ -63,6 +82,18 @@ const Register = ({ navigation }) => {
     }
     
     return age;
+  };
+
+  // Helper to scroll to a field
+  const handleFocus = (refName) => {
+    setTimeout(() => {
+      const ref = refs[refName]?.current;
+      if (ref && scrollViewRef.current) {
+        ref.measure((fx, fy, width, height, px, py) => {
+          scrollViewRef.current.scrollTo({ y: py - 40, animated: true });
+        });
+      }
+    }, 100);
   };
 
   const handleRegister = async () => {
@@ -109,22 +140,15 @@ const Register = ({ navigation }) => {
         nom, // Store first name as nom
         email,
         genre, // Store gender
+        tel: phone,
       };
 
       // Save user data to Firestore using userId as the document ID
       const userRef = doc(db, 'users', userId); // Use userId instead of email
       await setDoc(userRef, userData);
 
-      Alert.alert(
-        'Registration Successful', 
-        'Your details have been recorded.',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => navigation.navigate('Login')
-          }
-        ]
-      );
+      // Show modern success modal
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Registration error:', error.message);
       Alert.alert('Error', 'There was a problem saving your information: ' + error.message);
@@ -147,7 +171,12 @@ const Register = ({ navigation }) => {
         </TouchableOpacity>
       </SafeAreaView>
       
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContent} ref={scrollViewRef}>
         {/* Main content */}
         <View style={styles.content}>
           {/* Header text */}
@@ -174,10 +203,12 @@ const Register = ({ navigation }) => {
           <View style={styles.inputField}>
             <Text style={styles.inputLabel}>First name</Text>
             <TextInput
+              ref={refs.firstName}
               value={nom}
               onChangeText={setNom}
               style={styles.textInput}
               editable={!isLoading}
+              onFocus={() => handleFocus('firstName')}
             />
           </View>
 
@@ -185,10 +216,26 @@ const Register = ({ navigation }) => {
           <View style={styles.inputField}>
             <Text style={styles.inputLabel}>Last name</Text>
             <TextInput
+              ref={refs.lastName}
               value={prenom}
               onChangeText={setPrenom}
               style={styles.textInput}
               editable={!isLoading}
+              onFocus={() => handleFocus('lastName')}
+            />
+          </View>
+
+          {/* Phone Number Input */}
+          <View style={styles.inputField}>
+            <Text style={styles.inputLabel}>Phone number</Text>
+            <TextInput
+              ref={refs.phone}
+              value={phone}
+              onChangeText={setPhone}
+              style={styles.textInput}
+              editable={!isLoading}
+              keyboardType="phone-pad"
+              onFocus={() => handleFocus('phone')}
             />
           </View>
 
@@ -209,14 +256,17 @@ const Register = ({ navigation }) => {
 
           {/* Email Input */}
           <View style={styles.inputField}>
-            <Text style={styles.inputLabel}>E-mail</Text>
+            <Text style={styles.inputLabel}>Email</Text>
             <TextInput
+              ref={refs.email}
               value={email}
               onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
               style={styles.textInput}
               editable={!isLoading}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#888"
+              onFocus={() => handleFocus('email')}
             />
           </View>
 
@@ -224,11 +274,14 @@ const Register = ({ navigation }) => {
           <View style={styles.inputField}>
             <Text style={styles.inputLabel}>Password</Text>
             <TextInput
+              ref={refs.password}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry={true}
               style={styles.textInput}
               editable={!isLoading}
+              secureTextEntry
+              placeholderTextColor="#888"
+              onFocus={() => handleFocus('password')}
             />
           </View>
 
@@ -363,6 +416,32 @@ const Register = ({ navigation }) => {
           )}
         </View>
       )}
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, alignItems: 'center', width: 300 }}>
+            <Image source={require('../../assets/images/check.png')} style={{ width: 80, height: 80, marginBottom: 24 }} />
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#222', marginBottom: 12, textAlign: 'center' }}>Inscription réussie !</Text>
+            <Text style={{ fontSize: 16, color: '#555', marginBottom: 28, textAlign: 'center' }}>Votre compte a été créé avec succès.</Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#009fe3', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 32 }}
+              onPress={() => {
+                setShowSuccessModal(false);
+                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Let's go!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      </KeyboardAvoidingView>
     </View>
   );
 };

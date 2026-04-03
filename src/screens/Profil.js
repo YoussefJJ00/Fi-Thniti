@@ -5,7 +5,6 @@ import {
   StyleSheet, 
   Image, 
   TouchableOpacity, 
-  Alert, 
   TextInput, 
   ScrollView, 
   StatusBar, 
@@ -22,6 +21,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import { launchCameraAsync, launchImageLibraryAsync, MediaTypeOptions } from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
+import ModernAlert from '../components/ModernAlert';
 
 const Profile = () => {
   const [userData, setUserData] = useState(null);
@@ -60,6 +61,15 @@ const Profile = () => {
   const [licensePlate, setLicensePlate] = useState('');
   const [showProfilePicModal, setShowProfilePicModal] = useState(false);
   const [pendingProfilePic, setPendingProfilePic] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertImage, setAlertImage] = useState(null);
 
   const API_KEY = 'pNQEiaCh3YTD2L4oBo4qhA==AMXUJZqejCUPKdmS';
 
@@ -88,7 +98,7 @@ const Profile = () => {
 
   const fetchUserData = async () => {
     if (!userId) {
-      Alert.alert('Error', 'User not logged in');
+      showAlert('Error', 'User not logged in', 'error');
       setIsLoading(false);
       return;
     }
@@ -107,11 +117,11 @@ const Profile = () => {
         setPreferences(data.preferences || preferences); // Load preferences if available
         setVehicle(data.vehicle || vehicle); // Load vehicle data if available
       } else {
-        Alert.alert('Error', 'User data not found');
+        showAlert('Error', 'User data not found', 'error');
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
-      Alert.alert('Error', 'Could not fetch user data');
+      showAlert('Error', 'Could not fetch user data', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +133,7 @@ const Profile = () => {
     console.log("Permission Result: ", permissionResult);
   
     if (!permissionResult.granted) {
-      Alert.alert('Permission to access camera roll is required!');
+      showAlert('Permission', 'Permission to access camera roll is required!', 'error');
       return;
     }
   
@@ -150,11 +160,11 @@ const Profile = () => {
     const userRef = doc(db, 'users', userId);
     return setDoc(userRef, { profilePicture: imageUri }, { merge: true })
       .then(() => {
-        Alert.alert('Success', 'Profile picture updated successfully');
+        showAlert('Success', 'Profile picture updated successfully', 'success');
       })
       .catch((error) => {
         console.error('Erreur lors de la mise à jour de la photo de profil:', error);
-        Alert.alert('Erreur', "Impossible de mettre à jour la photo de profil.\n" + (error.message || error));
+        showAlert('Erreur', "Impossible de mettre à jour la photo de profil.\n" + (error.message || error), 'error');
       });
   };
 
@@ -165,7 +175,7 @@ const Profile = () => {
   const handleSavePreferences = async () => {
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, { preferences }, { merge: true });
-    Alert.alert('Success', 'Preferences updated successfully');
+    showAlert('Success', 'Preferences updated successfully', 'success');
   };
 
   const handleSaveVehicle = async () => {
@@ -264,11 +274,22 @@ const Profile = () => {
           seats: vehicleData.seats,
         }
       });
-      Alert.alert('Succès', 'Véhicule sauvegardé avec succès !');
+      showAlert('Succès', 'Véhicule sauvegardé avec succès !', 'success');
     } catch (e) {
       console.log('Error saving vehicle:', e);
-      Alert.alert('Erreur', "Impossible de sauvegarder le véhicule.\n" + (e.message || e));
+      showAlert('Erreur', "Impossible de sauvegarder le véhicule.\n" + (e.message || e), 'error');
     }
+  };
+
+  const showAlert = (title, message, type = 'error') => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    if (type === 'success') {
+      setAlertImage(require('../../assets/images/check.png'));
+    } else {
+      setAlertImage(null);
+    }
+    setAlertVisible(true);
   };
 
   if (isLoading) {
@@ -353,6 +374,20 @@ const Profile = () => {
           </View>
         </View>
 
+        {/* Change Password Section */}
+        <View style={styles.sectionRow}>
+          <View style={styles.checkboxLabel}>
+            <Icon name="lock" size={24} color="#212121" />
+            <View style={{ marginLeft: 8 }}>
+              <Text style={styles.sectionTitle}>Changer le mot de passe</Text>
+              <Text style={styles.sectionDesc}>Sécurisez votre compte</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.editBtn} onPress={() => setShowPasswordModal(true)}>
+            <Text style={styles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Preferences Section */}
         <View style={styles.sectionRow}>
           <View style={styles.checkboxLabel}>
@@ -392,7 +427,7 @@ const Profile = () => {
                 await auth.signOut();
                 navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
               } catch (error) {
-                Alert.alert('Erreur', "Impossible de se déconnecter.\n" + (error.message || error));
+                showAlert('Erreur', "Impossible de se déconnecter.\n" + (error.message || error), 'error');
               }
             }}
           >
@@ -551,7 +586,7 @@ const Profile = () => {
               </TouchableOpacity>
               <Text style={{ marginLeft: 8 }}>Save this as My Vehicle</Text>
             </View>
-            <TouchableOpacity style={styles.saveButton} onPress={() => saveVehicle(vehicle)}>
+            <TouchableOpacity style={styles.saveButton} onPress={() => saveVehicle({ ...vehicle, licensePlate: formatTunisianPlate(licensePlate) })}>
               <Text style={styles.saveButtonText}>Save Vehicle</Text>
             </TouchableOpacity>
           </View>
@@ -622,6 +657,88 @@ const Profile = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Change Password Modal */}
+      <Modal
+        visible={showPasswordModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Changer le mot de passe</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Mot de passe actuel"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Nouveau mot de passe"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Confirmer le nouveau mot de passe"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+            />
+            <TouchableOpacity
+              style={[styles.saveButton, { marginTop: 10 }]}
+              disabled={passwordLoading}
+              onPress={async () => {
+                if (!currentPassword || !newPassword || !confirmPassword) {
+                  showAlert('Erreur', 'Veuillez remplir tous les champs.', 'error');
+                  return;
+                }
+                if (newPassword !== confirmPassword) {
+                  showAlert('Erreur', 'Les nouveaux mots de passe ne correspondent pas.', 'error');
+                  return;
+                }
+                setPasswordLoading(true);
+                try {
+                  const user = auth.currentUser;
+                  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+                  await reauthenticateWithCredential(user, credential);
+                  await updatePassword(user, newPassword);
+                  showAlert('Succès', 'Mot de passe mis à jour.', 'success');
+                  setShowPasswordModal(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                } catch (error) {
+                  showAlert('Erreur', error.message || 'Impossible de changer le mot de passe.', 'error');
+                } finally {
+                  setPasswordLoading(false);
+                }
+              }}
+            >
+              <Text style={styles.saveButtonText}>{passwordLoading ? '...' : 'Changer le mot de passe'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: '#bbb', marginTop: 10 }]}
+              onPress={() => setShowPasswordModal(false)}
+            >
+              <Text style={[styles.saveButtonText, { color: '#fff' }]}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <ModernAlert
+        visible={alertVisible}
+        onClose={() => setAlertVisible(false)}
+        title={alertTitle}
+        message={alertMessage}
+        image={alertImage}
+        buttonText="OK"
+      />
     </SafeAreaView>
   );
 };

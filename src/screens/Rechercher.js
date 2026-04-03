@@ -10,8 +10,8 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  Alert,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, getDocs, limit, onSnapshot, orderBy, doc, runTransaction, updateDoc } from 'firebase/firestore';
@@ -23,6 +23,7 @@ import { addDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import ModernAlert from '../components/ModernAlert';
 
 const Rechercher = ({ navigation }) => {
   const [date, setDate] = useState(new Date());
@@ -44,13 +45,20 @@ const Rechercher = ({ navigation }) => {
   const [tempDate, setTempDate] = useState(date);
   const [tempTime, setTempTime] = useState(date);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertImage, setAlertImage] = useState(null);
+  const [searchActive, setSearchActive] = useState(false);
+  const [startingChat, setStartingChat] = useState(false);
 
   const currentUserId = auth.currentUser?.uid;
   const route = useRoute();
 
   const handleSearch = async () => {
     if (!origin || !destination) {
-      return Alert.alert('Erreur', 'Veuillez sélectionner départ et destination.');
+      showAlert('Erreur', 'Veuillez sélectionner départ et destination.', 'error');
+      return;
     }
 
     try {
@@ -70,27 +78,35 @@ const Rechercher = ({ navigation }) => {
           if (annonce.userId === currentUserId) return false;
           if (annonce.id === 'annonceId') return false;
 
-          const matchesLocations = 
-            annonce.lieuxdepart?.name === origin.name &&
-            annonce.lieuxarrivee?.name === destination.name;
+          // Debug logging
+          console.log('origin:', origin, 'destination:', destination);
+          console.log('annonce.lieuxdepart?.name:', annonce.lieuxdepart?.name, 'annonce.lieuxarrivee?.name:', annonce.lieuxarrivee?.name);
+          const matchesLocations =
+            !!annonce.lieuxdepart?.name && !!origin?.name &&
+            !!annonce.lieuxarrivee?.name && !!destination?.name &&
+            annonce.lieuxdepart.name.toLowerCase().includes(origin.name.toLowerCase()) &&
+            annonce.lieuxarrivee.name.toLowerCase().includes(destination.name.toLowerCase());
 
           let matchesSeats = true;
           let matchesDate = true;
 
+          // Only filter by seats if user changed it from default
           if (seats && seats !== '1') {
             matchesSeats = annonce.nbrplace >= Number(seats);
           }
 
+          // Only filter by date if user picked a date different from today
           const today = new Date();
-          if (date && (date.getDate() !== today.getDate() || 
-              date.getMonth() !== today.getMonth() || 
-              date.getFullYear() !== today.getFullYear())) {
-            
-            const annonceDate = annonce.datedepart?.seconds ? 
+          const isDateFilterActive = date && (
+            date.getDate() !== today.getDate() ||
+            date.getMonth() !== today.getMonth() ||
+            date.getFullYear() !== today.getFullYear()
+          );
+          if (isDateFilterActive) {
+            const annonceDate = annonce.datedepart?.seconds ?
               new Date(annonce.datedepart.seconds * 1000) : null;
-            
             if (annonceDate) {
-              matchesDate = 
+              matchesDate =
                 annonceDate.getDate() === date.getDate() &&
                 annonceDate.getMonth() === date.getMonth() &&
                 annonceDate.getFullYear() === date.getFullYear();
@@ -101,17 +117,25 @@ const Rechercher = ({ navigation }) => {
         });
 
       setResults(foundResults);
-      
+      setSearchActive(true);
       if (foundResults.length === 0) {
-        Alert.alert(
+        showAlert(
           'Info', 
-          'Aucun trajet trouvé pour ce trajet.\nEssayez sans la date ou le nombre de places pour voir plus de résultats.'
+          'Aucun trajet trouvé pour ce trajet.\nEssayez sans la date ou le nombre de places pour voir plus de résultats.',
+          'info'
         );
       }
     } catch (err) {
       console.error('Error searching annonces:', err);
-      Alert.alert('Erreur', 'Impossible de rechercher. Veuillez réessayer.');
+      showAlert('Erreur', 'Impossible de rechercher. Veuillez réessayer.', 'error');
     }
+  };
+
+  const handleClearSearch = () => {
+    setOrigin(null);
+    setDestination(null);
+    setResults([]);
+    setSearchActive(false);
   };
 
   const handleLocationSelect = (type) => {
@@ -227,19 +251,19 @@ const Rechercher = ({ navigation }) => {
   const handleReserver = async (annonce, seatsToReserve) => {
     try {
       if (!auth.currentUser) {
-        Alert.alert('Erreur', 'Vous devez être connecté pour réserver.');
+        showAlert('Erreur', 'Vous devez être connecté pour réserver.', 'error');
         return;
       }
       if (annonce.userId === auth.currentUser.uid) {
-        Alert.alert('Erreur', 'Vous ne pouvez pas réserver votre propre trajet.');
+        showAlert('Erreur', 'Vous ne pouvez pas réserver votre propre trajet.', 'error');
         return;
       }
       if (seatsToReserve < 1) {
-        Alert.alert('Erreur', 'Veuillez choisir au moins une place.');
+        showAlert('Erreur', 'Veuillez choisir au moins une place.', 'error');
         return;
       }
       if (seatsToReserve > annonce.nbrplace) {
-        Alert.alert('Erreur', `Il n'y a que ${annonce.nbrplace} places disponibles.`);
+        showAlert('Erreur', `Il n'y a que ${annonce.nbrplace} places disponibles.`, 'error');
         return;
       }
 
@@ -252,7 +276,7 @@ const Rechercher = ({ navigation }) => {
       );
       const existing = await getDocs(q);
       if (!existing.empty) {
-        Alert.alert('Erreur', 'Vous avez déjà une réservation en attente ou acceptée pour ce trajet.');
+        showAlert('Erreur', 'Vous avez déjà une réservation en attente ou acceptée pour ce trajet.', 'error');
         return;
       }
 
@@ -267,10 +291,10 @@ const Rechercher = ({ navigation }) => {
       const userRef = doc(db, 'users', auth.currentUser.uid);
       await updateDoc(userRef, { isDriver: false });
 
-      Alert.alert('Succès', 'Votre demande de réservation a été envoyée au conducteur.');
+      showAlert('Succès', 'Votre demande de réservation a été envoyée au conducteur.', 'success');
     } catch (err) {
       console.error('Erreur lors de la réservation:', err);
-      Alert.alert('Erreur', 'Impossible de réserver ce trajet. Veuillez réessayer.');
+      showAlert('Erreur', 'Impossible de réserver ce trajet. Veuillez réessayer.', 'error');
     }
   };
 
@@ -291,10 +315,10 @@ const Rechercher = ({ navigation }) => {
         transaction.update(reservationRef, { status: 'accepted' });
       });
 
-      Alert.alert('Succès', 'Réservation acceptée et places réservées.');
+      showAlert('Succès', 'Réservation acceptée et places réservées.', 'success');
     } catch (err) {
       console.error(err);
-      Alert.alert('Erreur', err.message || 'Impossible d\'accepter la réservation.');
+      showAlert('Erreur', err.message || 'Impossible d\'accepter la réservation.', 'error');
     }
   };
 
@@ -340,44 +364,95 @@ const Rechercher = ({ navigation }) => {
       <View style={styles.cardContainer}>
         <View style={styles.cardHeaderRow}>
           <Text style={styles.cardTitle}>{item.lieuxdepart?.name} {'>'} {item.lieuxarrivee?.name}</Text>
-          <View style={styles.cardStatusRow}>
-            {getStatusBadge(item.etat)}
-            <Text style={styles.cardStatusText}>{getStatusText(item.etat)}</Text>
-          </View>
+        </View>
+        <View style={[styles.cardStatusRow, { alignSelf: 'flex-start', marginBottom: 4, marginTop: 2 }]}> 
+          {getStatusBadge(item.etat)}
+          <Text style={styles.cardStatusText}>{getStatusText(item.etat)}</Text>
+        </View>
+        {/* Comfort, AC, and Aller-Retour badges */}
+        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+          {item.confort && (
+            <View style={{ backgroundColor: '#e0f7fa', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 }}>
+              <Text style={{ color: '#009fe3', fontWeight: 'bold', fontSize: 13 }}>Confortable</Text>
+            </View>
+          )}
+          {item.climatise && (
+            <View style={{ backgroundColor: '#e3fcec', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 }}>
+              <Text style={{ color: '#00b894', fontWeight: 'bold', fontSize: 13 }}>Climatisé</Text>
+            </View>
+          )}
+          {item.aller_retour && (
+            <View style={{ backgroundColor: '#fce4ec', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Text style={{ color: '#d81b60', fontWeight: 'bold', fontSize: 13 }}>Aller-Retour</Text>
+            </View>
+          )}
         </View>
         <Text style={styles.cardDescription}>Description: {item.description}</Text>
         <Text style={styles.cardSubText}>
           Date: {formattedDate} | Heure: {formattedTime}
         </Text>
         <Text style={styles.cardSubText}>
-          Prix: {item.prix}€ | Places disponibles: {item.nbrplace - (item.reservedSeats || 0)}
+          Prix: {item.prix} dt | Places disponibles: {item.nbrplace - (item.reservedSeats || 0)}
         </Text>
-        {item.aller_retour && (
-          <TouchableOpacity>
-            <Text style={styles.allerRetourLink}>Aller-Retour</Text>
-          </TouchableOpacity>
-        )}
         <View style={styles.cardActionsRow}>
           <TouchableOpacity
             style={styles.infoIconButton}
-            onPress={() => Alert.alert('Info', 'Plus d\'informations à venir.')}
+            onPress={() => showAlert('Info', 'Plus d\'informations à venir.', 'info')}
           >
             <Ionicons name="information-circle-outline" size={24} color="#009fe3" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.messageButton}
-            onPress={() => navigation.navigate('Messages', {
-              annonceId: item.id,
-              driverId: item.userId
-            })}
+            onPress={async () => {
+              setStartingChat(true);
+              console.log('Message button pressed');
+              try {
+                console.log('About to get currentUserId and otherUserId');
+                const currentUserId = auth.currentUser?.uid;
+                const otherUserId = item.userId;
+                console.log('currentUserId:', currentUserId, 'otherUserId:', otherUserId);
+                if (!currentUserId || !otherUserId) {
+                  console.log('Missing userId(s)', { currentUserId, otherUserId });
+                  throw new Error('Utilisateur non trouvé');
+                }
+                // Always use sorted order for participants
+                const participants = [currentUserId, otherUserId].sort();
+                const q = query(
+                  collection(db, 'messages'),
+                  where('participants', '==', participants)
+                );
+                const snap = await getDocs(q);
+                const exists = !snap.empty;
+                if (!exists) {
+                  // Create a new conversation by sending a welcome message
+                  await addDoc(collection(db, 'messages'), {
+                    senderId: currentUserId,
+                    receiverId: otherUserId,
+                    message: 'Bonjour !',
+                    timestamp: serverTimestamp(),
+                    participants,
+                  });
+                }
+                navigation.getParent()?.getParent()?.navigate('Messages', {
+                  annonceId: item.id,
+                  otherUserId: item.userId
+                });
+              } catch (e) {
+                console.log('Error creating or navigating to conversation:', e);
+                showAlert('Erreur', "Impossible de démarrer la conversation.");
+              } finally {
+                setStartingChat(false);
+              }
+            }}
           >
             <Ionicons name="chatbubble-ellipses-outline" size={22} color="#009fe3" />
           </TouchableOpacity>
+          {startingChat && <ActivityIndicator size="small" color="#009fe3" style={{ marginLeft: 8 }} />}
           <TouchableOpacity
             style={styles.reserveButton}
             onPress={async () => {
               if (item.userId === currentUserId) {
-                Alert.alert('Erreur', 'Vous ne pouvez pas réserver votre propre trajet.');
+                showAlert('Erreur', 'Vous ne pouvez pas réserver votre propre trajet.', 'error');
                 return;
               }
               const q = query(
@@ -388,7 +463,7 @@ const Rechercher = ({ navigation }) => {
               );
               const existing = await getDocs(q);
               if (!existing.empty) {
-                Alert.alert('Erreur', 'Vous avez déjà une réservation en attente ou acceptée pour ce trajet.');
+                showAlert('Erreur', 'Vous avez déjà une réservation en attente ou acceptée pour ce trajet.', 'error');
                 return;
               }
               setSelectedAnnonce(item);
@@ -409,6 +484,17 @@ const Rechercher = ({ navigation }) => {
   const handleConfirm = (date) => {
     setDate(date);
     hideDatePicker();
+  };
+
+  const showAlert = (title, message, type = 'error') => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    if (type === 'success') {
+      setAlertImage(require('../../assets/images/check.png'));
+    } else {
+      setAlertImage(null);
+    }
+    setAlertVisible(true);
   };
 
   if (loading) {
@@ -438,7 +524,7 @@ const Rechercher = ({ navigation }) => {
         elevation: 2,
         marginTop: 32,
       }}>
-        {/* Departure & Destination with Flip Button on the right */}
+        {/* Departure & Destination with Flip Button and Clear Search (X) Button on the right */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <View style={{ flex: 1 }}>
             {/* Departure */}
@@ -462,8 +548,8 @@ const Rechercher = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </View>
-          {/* Flip Button on the right, centered */}
-          <View style={{ justifyContent: 'center', alignItems: 'center', height: 80, marginLeft: 20 }}>
+          {/* Flip Button and Clear Search (X) Button on the right, centered */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', height: 80, marginLeft: 20 }}>
             <TouchableOpacity
               style={{
                 backgroundColor: '#fff',
@@ -473,15 +559,36 @@ const Rechercher = ({ navigation }) => {
                 shadowColor: '#000',
                 shadowOpacity: 0.08,
                 shadowRadius: 4,
+                marginRight: 8,
               }}
               onPress={() => {
-                setOrigin(destination);
-                setDestination(origin);
+                if (origin && destination) {
+                  const temp = origin;
+                  setOrigin(destination);
+                  setDestination(temp);
+                }
               }}
               accessibilityLabel="Inverser départ et destination"
             >
               <Ionicons name="sync" size={24} color="#009fe3" />
             </TouchableOpacity>
+            {searchActive && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 20,
+                  padding: 8,
+                  elevation: 2,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.08,
+                  shadowRadius: 4,
+                }}
+                onPress={handleClearSearch}
+                accessibilityLabel="Effacer la recherche"
+              >
+                <Ionicons name="close" size={24} color="#d32f2f" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         {/* Date */}
@@ -544,26 +651,29 @@ const Rechercher = ({ navigation }) => {
       </View>
 
       {/* Search Results */}
-      <FlatList
-        style={styles.list}
-        data={results}
-        keyExtractor={item => item.id}
-        ListEmptyComponent={<Text style={styles.emptyText}>Aucun résultat trouvé.</Text>}
-        renderItem={renderAnnonce}
-      />
-
-      {/* Ongoing Annonces */}
-      <Text style={styles.title}>Annonces en cours</Text>
-      <FlatList
-        data={annonces}
-        renderItem={renderAnnonce}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={<Text style={styles.emptyText}>Aucune annonce en cours.</Text>}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      />
+      {searchActive ? (
+        <FlatList
+          style={styles.list}
+          data={results}
+          keyExtractor={item => item.id}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun résultat trouvé.</Text>}
+          renderItem={renderAnnonce}
+        />
+      ) : (
+        <>
+          <Text style={styles.title}>Annonces en cours</Text>
+          <FlatList
+            data={annonces}
+            renderItem={renderAnnonce}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={<Text style={styles.emptyText}>Aucune annonce en cours.</Text>}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          />
+        </>
+      )}
 
       <Modal
         visible={reserveModalVisible}
@@ -661,6 +771,15 @@ const Rechercher = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      <ModernAlert
+        visible={alertVisible}
+        onClose={() => setAlertVisible(false)}
+        title={alertTitle}
+        message={alertMessage}
+        image={alertImage}
+        buttonText="OK"
+      />
     </View>
   );
 };

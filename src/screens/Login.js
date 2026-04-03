@@ -1,18 +1,44 @@
-import React, { useState } from 'react';
-import { View, Image, ImageBackground, TouchableOpacity, StyleSheet, TextInput as RNTextInput, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Animated, Image, ImageBackground, TouchableOpacity, StyleSheet, TextInput as RNTextInput, SafeAreaView, ActivityIndicator } from 'react-native';
 import { Text } from 'react-native-paper';
 import { auth, db } from '../../firebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast, Toast } from "@gluestack-ui/themed";
+import ModernAlert from '../components/ModernAlert';
 
 const Login = ({ navigation }) => {
-  const [email, setEmail] = useState('youssefghouilz@gmail.com');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [verifyingUser, setVerifyingUser] = useState(false);
   const toast = useToast();
+
+  const logoScale = useRef(new Animated.Value(1.5)).current;
+  useEffect(() => {
+    Animated.timing(logoScale, {
+      toValue: 2,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+  }, [logoScale]);
+
+  // ModernAlert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertImage, setAlertImage] = useState(null);
+  const showAlert = (title, message, type = 'error') => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    if (type === 'success') {
+      setAlertImage(require('../../assets/images/check.png'));
+    } else {
+      setAlertImage(null);
+    }
+    setAlertVisible(true);
+  };
 
   const checkUserProfile = async (userId) => {
     try {
@@ -38,7 +64,7 @@ const Login = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error checking user profile:', error);
-      Alert.alert('Database Error', 'Could not verify user profile');
+      showAlert('Database Error', 'Could not verify user profile', 'error');
       return null;
     } finally {
       setVerifyingUser(false);
@@ -59,7 +85,7 @@ const Login = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Input Error', 'Please enter both email and password');
+      showAlert('Input Error', 'Please enter both email and password', 'error');
       return;
     }
 
@@ -73,7 +99,7 @@ const Login = ({ navigation }) => {
       // Now verify Firestore connection AFTER authentication
       const connectionOk = await verifyFirestoreConnection(userCredential.user.uid);
       if (!connectionOk) {
-        Alert.alert('Database Warning', 'Connected to authentication but database access may be limited');
+        showAlert('Database Warning', 'Connected to authentication but database access may be limited', 'warning');
       }
       
       // Check/create user profile in Firestore
@@ -106,7 +132,7 @@ const Login = ({ navigation }) => {
         errorMessage = 'Invalid email address format.';
       }
       
-      Alert.alert('Login Error', errorMessage);
+      showAlert('Login Error', errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -114,16 +140,16 @@ const Login = ({ navigation }) => {
 
   const handleGoogleLogin = () => {
     // Implement Google Sign In
-    Alert.alert('Coming Soon', 'Google Sign In will be available in a future update');
+    showAlert('Coming Soon', 'Google Sign In will be available in a future update', 'info');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Top image section */}
       <View style={styles.imageContainer}>
-        <Image
-          source={require('../../assets/images/signup-car.png')}
-          style={styles.carImage}
+        <Animated.Image
+          source={require('../../assets/images/fi_thniitit.png')}
+          style={[styles.logoImage, { transform: [{ scale: logoScale }] }]}
           resizeMode="cover"
         />
       </View>
@@ -132,7 +158,7 @@ const Login = ({ navigation }) => {
       <View style={styles.contentContainer}>
         {/* Welcome text */}
         <Text style={styles.welcomeText}>
-          Welcome <Text>⭐</Text>
+          Bienvenue <Text></Text>
         </Text>
 
         {/* Email Input */}
@@ -160,7 +186,7 @@ const Login = ({ navigation }) => {
             style={styles.inputIcon}
           />
           <RNTextInput
-            placeholder="Enter password"
+            placeholder="Entrer votre mot de passe"
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!passwordVisible}
@@ -204,17 +230,26 @@ const Login = ({ navigation }) => {
             source={require('../../assets/icons/google.png')}
             style={styles.googleIcon}
           />
-          <Text style={styles.googleButtonText}>Log In with Google</Text>
+          <Text style={styles.googleButtonText}>Se connecter via google</Text>
         </TouchableOpacity>
 
         {/* Register Link */}
         <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>Don't have an account? </Text>
+          <Text style={styles.registerText}>Pas de compte? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Register')} disabled={isLoading}>
             <Text style={styles.logInButtonText}>Register</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      <ModernAlert
+        visible={alertVisible}
+        onClose={() => setAlertVisible(false)}
+        title={alertTitle}
+        message={alertMessage}
+        image={alertImage}
+        buttonText="OK"
+      />
     </SafeAreaView>
   );
 };
@@ -228,9 +263,11 @@ const styles = StyleSheet.create({
     height: '30%',
     overflow: 'hidden',
   },
-  carImage: {
+  logoImage: {
     width: '100%',
-    height: '100%',
+    height: 220,
+    maxHeight: 320,
+    alignSelf: 'center',
   },
   contentContainer: {
     flex: 1,

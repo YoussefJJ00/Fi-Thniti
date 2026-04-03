@@ -22,6 +22,8 @@ import { enableScreens } from 'react-native-screens';
 import MainTabs from './src/navigation/MainTabs';
 import { LocationSelectionProvider } from './src/utils/LocationSelectionContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import SplashScreen from './src/screens/SplashScreen';
+import { useState } from 'react';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -37,9 +39,17 @@ LogBox.ignoreLogs([
 ]);
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   return (
-    <NavigationContainer>
-      <RootNavigator />
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+      {!showSplash && (
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      )}
+    </SafeAreaProvider>
   );
 }

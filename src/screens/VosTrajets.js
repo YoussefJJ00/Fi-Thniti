@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Button, FlatList, TouchableOpacity, Alert, StyleSheet, Modal, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, Button, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { db, auth } from '../../firebaseConfig';
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, deleteDoc, onSnapshot, runTransaction } from 'firebase/firestore';
 import { ANNONCE_STATUS } from '../utils/annonceStatus';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import ModernAlert from '../components/ModernAlert';
 
 const VosTrajets = () => {
   const [annonces, setAnnonces] = useState([]);
@@ -24,6 +25,13 @@ const VosTrajets = () => {
   const [reservationAnnonces, setReservationAnnonces] = useState({});
   const [driverReservations, setDriverReservations] = useState([]);
   const navigation = useNavigation();
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertImage, setAlertImage] = useState(null);
+  const [pendingEndAnnonce, setPendingEndAnnonce] = useState(null);
+  const [pendingEndReservation, setPendingEndReservation] = useState(null);
+  const [pendingCancelAnnonce, setPendingCancelAnnonce] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -88,7 +96,7 @@ const VosTrajets = () => {
       req.userId === passengerId ? { ...req, status: action } : req
     );
     await updateDoc(annonceRef, { passengerRequests: updatedRequests });
-    Alert.alert('Succès', `Demande ${action === 'accepted' ? 'acceptée' : 'refusée'}.`);
+    showAlert('Succès', `Demande ${action === 'accepted' ? 'acceptée' : 'refusée'}.`);
     // Refresh
     setAnnonces(prev =>
       prev.map(a =>
@@ -98,23 +106,33 @@ const VosTrajets = () => {
   };
 
   // Cancel trip
-  const handleCancelTrip = async (annonceId) => {
+  const handleEndTrip = async (annonceId) => {
     try {
-      await deleteDoc(doc(db, 'annonces', annonceId));
-      // Mark all reservations for this annonce as canceled
+      // Delete all reservations for this annonce
       const reservationsRef = collection(db, 'reservations');
       const q = query(reservationsRef, where('annonceId', '==', annonceId));
       const snap = await getDocs(q);
-      const batchUpdates = snap.docs.map(docSnap =>
-        updateDoc(doc(db, 'reservations', docSnap.id), { status: 'canceled' })
-      );
-      await Promise.all(batchUpdates);
-
-      Alert.alert('Succès', 'Trajet supprimé et réservations annulées.');
+      const batchDeletes = snap.docs.map(docSnap => deleteDoc(doc(db, 'reservations', docSnap.id)));
+      await Promise.all(batchDeletes);
+      // Delete the annonce
+      await deleteDoc(doc(db, 'annonces', annonceId));
+      showAlert('Succès', 'Trajet terminé et supprimé.');
       setAnnonces(prev => prev.filter(a => a.id !== annonceId));
     } catch (error) {
-      Alert.alert('Erreur', "Impossible de supprimer l'annonce.");
+      showAlert('Erreur', "Impossible de terminer le trajet.", 'error');
     }
+    setPendingEndAnnonce(null);
+  };
+
+  const handleEndReservation = async (reservationId) => {
+    try {
+      await deleteDoc(doc(db, 'reservations', reservationId));
+      showAlert('Succès', 'Trajet marqué comme terminé et supprimé.');
+      setReservations(prev => prev.filter(r => r.id !== reservationId));
+    } catch (error) {
+      showAlert('Erreur', "Impossible de terminer le trajet.", 'error');
+    }
+    setPendingEndReservation(null);
   };
 
   const handleEditAnnonce = (annonce) => {
@@ -143,7 +161,7 @@ const VosTrajets = () => {
     );
     setEditModalVisible(false);
     setEditAnnonce(null);
-    Alert.alert('Succès', 'Annonce modifiée.');
+    showAlert('Succès', 'Annonce modifiée.');
   };
 
   const handleAccept = async (reservation) => {
@@ -163,10 +181,10 @@ const VosTrajets = () => {
         transaction.update(reservationRef, { status: 'accepted' });
       });
 
-      Alert.alert('Succès', 'Réservation acceptée et place réservée.');
+      showAlert('Succès', 'Réservation acceptée et place réservée.');
     } catch (err) {
       console.error(err);
-      Alert.alert('Erreur', err.message || 'Impossible d\'accepter la réservation.');
+      showAlert('Erreur', err.message || 'Impossible d\'accepter la réservation.');
     }
   };
 
@@ -174,10 +192,10 @@ const VosTrajets = () => {
     try {
       const reservationRef = doc(db, 'reservations', reservation.id);
       await updateDoc(reservationRef, { status: 'declined' });
-      Alert.alert('Réservation refusée', 'Le passager sera notifié.');
+      showAlert('Réservation refusée', 'Le passager sera notifié.');
     } catch (err) {
       console.error(err);
-      Alert.alert('Erreur', 'Impossible de refuser la réservation.');
+      showAlert('Erreur', 'Impossible de refuser la réservation.');
     }
   };
 
@@ -217,6 +235,13 @@ const VosTrajets = () => {
     setRefreshing(false);
   };
 
+  const showAlert = (title, message, type = 'success') => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertImage(type === 'success' ? require('../../assets/images/check.png') : null);
+    setAlertVisible(true);
+  };
+
   // Render for driver
   const renderDriverAnnonce = ({ item }) => {
     console.log('Reservations for annonce', item.id, driverReservations.filter(r => r.annonceId === item.id));
@@ -240,29 +265,26 @@ const VosTrajets = () => {
         <Text style={styles.annonceDescription}>Description: {item.description}</Text>
         <Text>Status: {item.etat}</Text>
         <Text>Passagers: {passagerMessage.split('\n').map((line, idx) => <Text key={idx}>{line}{'\n'}</Text>)}</Text>
-        {item.passengerRequests && item.passengerRequests.length > 0 ? (
-          item.passengerRequests.map(req => (
-            <View key={req.userId} style={styles.requestRow}>
-              <Text>{req.userId} - {req.status}</Text>
-              {req.status === 'pending' && (
-                <>
-                  <Button title="Accepter" onPress={() => handleRequest(item.id, req.userId, 'accepted')} />
-                  <Button title="Refuser" onPress={() => handleRequest(item.id, req.userId, 'rejected')} />
-                </>
-              )}
-            </View>
-          ))
-        ) : (
-          <Text>Aucune demande</Text>
-        )}
         {/* Custom styled action buttons */}
         <View style={styles.actionButtonGroup}>
+          {/* Always show Annuler le trajet button */}
           <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => handleCancelTrip(item.id)}
+            style={[styles.cancelButton, { backgroundColor: '#e53935', marginBottom: 10 }]}
+            onPress={() => {
+              console.log('Annuler le trajet button pressed for', item.id);
+              setPendingCancelAnnonce(item.id);
+            }}
           >
-            <Text style={styles.cancelButtonText}>ANNULER LE TRAJET</Text>
+            <Text style={[styles.cancelButtonText, { color: '#fff' }]}>ANNULER LE TRAJET</Text>
           </TouchableOpacity>
+          {driverReservations.filter(r => r.annonceId === item.id && r.status === 'accepted').length > 0 && (
+            <TouchableOpacity
+              style={[styles.cancelButton, { backgroundColor: '#4CAF50', marginBottom: 10 }]}
+              onPress={() => setPendingEndAnnonce(item.id)}
+            >
+              <Text style={[styles.cancelButtonText, { color: '#fff' }]}>TERMINER LE TRAJET</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.editButton}
             onPress={() => handleEditAnnonce(item)}
@@ -314,40 +336,19 @@ const VosTrajets = () => {
         <Text>
           Statut: {item.status === 'pending' ? 'En attente' : item.status === 'accepted' ? 'Acceptée' : item.status === 'declined' ? 'Refusée' : item.status === 'canceled' ? 'Annulé' : item.status}
         </Text>
-        {/* Cancel button for passenger */}
-        {item.status === 'pending' && (
+        {/* End ride for passenger */}
+        {item.status === 'accepted' && (
           <TouchableOpacity
             style={{
-              backgroundColor: 'red',
+              backgroundColor: '#4CAF50',
               padding: 10,
               borderRadius: 6,
               marginTop: 10,
               alignItems: 'center',
             }}
-            onPress={async () => {
-              Alert.alert(
-                'Annuler la réservation',
-                'Êtes-vous sûr de vouloir annuler cette réservation ?',
-                [
-                  { text: 'Non', style: 'cancel' },
-                  {
-                    text: 'Oui',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        await deleteDoc(doc(db, 'reservations', item.id));
-                        setReservations(prev => prev.filter(r => r.id !== item.id));
-                        Alert.alert('Succès', 'Réservation annulée.');
-                      } catch (err) {
-                        Alert.alert('Erreur', "Impossible d'annuler la réservation.");
-                      }
-                    },
-                  },
-                ]
-              );
-            }}
+            onPress={() => setPendingEndReservation(item.id)}
           >
-            <Text style={{ color: 'white', fontWeight: 'bold' }}>Annuler</Text>
+            <Text style={{ color: 'white', fontWeight: 'bold' }}>Trajet terminé</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -358,15 +359,37 @@ const VosTrajets = () => {
             marginTop: 10,
             alignItems: 'center',
           }}
-          onPress={() => navigation.navigate('Messages', {
+          onPress={() => navigation.getParent()?.getParent()?.navigate('Messages', {
             annonceId: item.annonceId,
-            driverId: reservationAnnonces[item.annonceId]?.userId
+            otherUserId: reservationAnnonces[item.annonceId]?.userId
           })}
         >
           <Text style={{ color: 'white', fontWeight: 'bold' }}>Message Driver</Text>
         </TouchableOpacity>
       </View>
     );
+  };
+
+  const handleCancelTrip = async (annonceId) => {
+    console.log('handleCancelTrip called for', annonceId);
+    try {
+      console.log('Attempting to delete reservations for annonce:', annonceId);
+      // Delete all reservations for this annonce
+      const reservationsRef = collection(db, 'reservations');
+      const q = query(reservationsRef, where('annonceId', '==', annonceId));
+      const snap = await getDocs(q);
+      const batchDeletes = snap.docs.map(docSnap => deleteDoc(doc(db, 'reservations', docSnap.id)));
+      await Promise.all(batchDeletes);
+      console.log('Reservations deleted, now deleting annonce:', annonceId);
+      // Delete the annonce
+      await deleteDoc(doc(db, 'annonces', annonceId));
+      showAlert('Succès', 'Trajet annulé et supprimé.');
+      setAnnonces(prev => prev.filter(a => a.id !== annonceId));
+    } catch (error) {
+      console.log('Error deleting trajet:', error);
+      showAlert('Erreur', "Impossible d'annuler le trajet.", 'error');
+    }
+    setPendingCancelAnnonce(null);
   };
 
   if (loading) return <ActivityIndicator size="large" color="#2196F3" style={{ flex: 1, justifyContent: 'center' }} />;
@@ -498,10 +521,9 @@ const VosTrajets = () => {
                       }}
                       onPress={() => {
                         setReservationModalVisible(false);
-                        navigation.navigate('Messages', {
+                        navigation.getParent()?.getParent()?.navigate('Messages', {
                           annonceId: info.annonceId,
-                          driverId: userId,
-                          passengerId: info.userId
+                          otherUserId: info.userId
                         });
                       }}
                     >
@@ -554,6 +576,46 @@ const VosTrajets = () => {
           </View>
         </View>
       </Modal>
+      {/* ModernAlert for confirmations and success */}
+      <ModernAlert
+        visible={!!pendingEndAnnonce}
+        onClose={() => setPendingEndAnnonce(null)}
+        title="Terminer le trajet ?"
+        message="Êtes-vous sûr de vouloir terminer et supprimer ce trajet pour tous les passagers ?"
+        buttonText="Oui, terminer"
+        image={null}
+        onPress={() => handleEndTrip(pendingEndAnnonce)}
+      />
+      <ModernAlert
+        visible={!!pendingEndReservation}
+        onClose={() => setPendingEndReservation(null)}
+        title="Trajet terminé ?"
+        message="Êtes-vous sûr de vouloir marquer ce trajet comme terminé et le supprimer ?"
+        buttonText="Oui, terminer"
+        image={null}
+        onPress={() => handleEndReservation(pendingEndReservation)}
+      />
+      <ModernAlert
+        visible={alertVisible}
+        onClose={() => setAlertVisible(false)}
+        title={alertTitle}
+        message={alertMessage}
+        image={alertImage}
+        buttonText="OK"
+      />
+      {/* ModernAlert for Annuler le trajet confirmation */}
+      <ModernAlert
+        visible={!!pendingCancelAnnonce}
+        onClose={() => setPendingCancelAnnonce(null)}
+        title="Annuler le trajet ?"
+        message="Êtes-vous sûr de vouloir annuler et supprimer ce trajet ?"
+        buttonText="Oui, annuler"
+        image={null}
+        onPress={() => {
+          console.log('ModernAlert confirm pressed, annonceId:', pendingCancelAnnonce);
+          handleCancelTrip(pendingCancelAnnonce);
+        }}
+      />
     </SafeAreaView>
   );
 };

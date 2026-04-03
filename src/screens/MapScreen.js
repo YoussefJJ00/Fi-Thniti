@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Alert, SafeAreaView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, SafeAreaView } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { db, auth } from '../../firebaseConfig';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import ModernAlert from '../components/ModernAlert';
 
 const MapScreen = () => {
   const navigation = useNavigation();
@@ -38,6 +39,22 @@ const MapScreen = () => {
   const [rideSuggestions, setRideSuggestions] = useState([]);
   const [postingSuggestions, setPostingSuggestions] = useState([]);
   const userId = auth.currentUser?.uid;
+
+  // ModernAlert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertImage, setAlertImage] = useState(null);
+  const showAlert = (title, message, type = 'error') => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    if (type === 'success') {
+      setAlertImage(require('../../assets/images/check.png'));
+    } else {
+      setAlertImage(null);
+    }
+    setAlertVisible(true);
+  };
 
   // Optimize location permission check
   useEffect(() => {
@@ -167,17 +184,17 @@ const MapScreen = () => {
   const handlePredefinedLocationSelect = (location) => {
     if (!departureLocation) {
       setDepartureLocation(location);
-      Alert.alert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`);
+      showAlert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`, 'success');
     } else if (!destinationLocation) {
       setDestinationLocation(location);
-      Alert.alert('Destination sélectionnée', `Destination: ${location.name}`);
+      showAlert('Destination sélectionnée', `Destination: ${location.name}`, 'success');
     }
   };
 
   const handlePlaceSelect = (data, details) => {
     try {
       if (!details || !details.geometry) {
-        Alert.alert('Erreur', 'Impossible d\'obtenir les détails de l\'emplacement');
+        showAlert('Erreur', 'Impossible d\'obtenir les détails de l\'emplacement', 'error');
         return;
       }
 
@@ -197,7 +214,7 @@ const MapScreen = () => {
       }, 1000);
     } catch (error) {
       console.error('Error selecting place:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner cet emplacement. Veuillez réessayer.');
+      showAlert('Erreur', 'Impossible de sélectionner cet emplacement. Veuillez réessayer.', 'error');
     }
   };
 
@@ -242,21 +259,21 @@ const MapScreen = () => {
               street, 
             })
             if (!city && !region && !street) {
-              Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+              showAlert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.', 'error');
               return;
             }
             locationName = [street, city, region].filter(Boolean).join(', ');
           } else {
-            Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+            showAlert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.', 'error');
             return;
           }
         } catch (geoError) {
-          Alert.alert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.');
+          showAlert('Erreur', 'Emplacement inconnu, veuillez sélectionner un autre point.', 'error');
           return;
         }
       }
       if (!locationName) {
-        Alert.alert('Erreur', 'Aucun lieu d\'intérêt trouvé à cet endroit.');
+        showAlert('Erreur', 'Aucun lieu d\'intérêt trouvé à cet endroit.', 'error');
         return;
       }
       const location = {
@@ -267,18 +284,18 @@ const MapScreen = () => {
 
       if (!departureLocation) {
         setDepartureLocation(location);
-        Alert.alert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`);
+        showAlert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`, 'success');
       } else if (!destinationLocation) {
         setDestinationLocation(location);
-        Alert.alert('Destination sélectionnée', `Destination: ${location.name}`);
+        showAlert('Destination sélectionnée', `Destination: ${location.name}`, 'success');
       } else {
-        Alert.alert('Erreur', 'Les deux emplacements sont déjà sélectionnés.');
+        showAlert('Erreur', 'Les deux emplacements sont déjà sélectionnés.', 'error');
       }
 
       setMarkerCoordinate(location);
     } catch (error) {
       console.error('Error handling map press:', error);
-      Alert.alert('Error', 'Could not select this location. Please try again.');
+      showAlert('Error', 'Could not select this location. Please try again.', 'error');
     }
   };
 
@@ -311,19 +328,19 @@ const MapScreen = () => {
     };
     if (!departureLocation) {
       setDepartureLocation(location);
-      Alert.alert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`);
+      showAlert('Départ sélectionné', `Départ: ${location.name}\n\nVeuillez maintenant sélectionner la destination.`, 'success');
     } else if (!destinationLocation) {
       setDestinationLocation(location);
-      Alert.alert('Destination sélectionnée', `Destination: ${location.name}`);
+      showAlert('Destination sélectionnée', `Destination: ${location.name}`, 'success');
     } else {
-      Alert.alert('Erreur', 'Les deux emplacements sont déjà sélectionnés.');
+      showAlert('Erreur', 'Les deux emplacements sont déjà sélectionnés.', 'error');
     }
     setMarkerCoordinate(location);
   };
 
   const handleConfirmLocation = () => {
     if (!departureLocation && !destinationLocation) {
-      Alert.alert('Erreur', 'Veuillez sélectionner le départ et la destination');
+      showAlert('Erreur', 'Veuillez sélectionner le départ et la destination', 'error');
       return;
     }
     if (route.params?.onLocationSelected) {
@@ -562,6 +579,14 @@ const MapScreen = () => {
           </Text>
         </TouchableOpacity>
       )}
+      <ModernAlert
+        visible={alertVisible}
+        onClose={() => setAlertVisible(false)}
+        title={alertTitle}
+        message={alertMessage}
+        image={alertImage}
+        buttonText="OK"
+      />
     </SafeAreaView>
   );
 };
