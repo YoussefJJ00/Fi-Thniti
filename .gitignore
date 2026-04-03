@@ -28,10 +28,15 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files (keep `.env.example` tracked)
 .env*.local
 .env
-.env.*
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+!.env.example
 scripts/serviceAccountKey.json
 
 # typescript
